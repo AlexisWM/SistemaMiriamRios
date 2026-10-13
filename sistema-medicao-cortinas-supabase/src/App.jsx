@@ -20,6 +20,20 @@ import {
 } from "./lib/db";
 import { supabase } from "./lib/supabaseClient";
 import {
+  calcularOrcamentoPersiana,
+  aplicarPrecosPersiana,
+  orcamentoPersianaPadrao,
+  opcoesDoModelo,
+  opcaoAtiva,
+  precisaVariante,
+  linhasHorizontal,
+  motoresDoModelo,
+  controlesPersiana,
+  acessoriosDoMotor,
+  aceitaMotor,
+} from "./lib/tabelaPersianas";
+import {
+  AlertTriangle,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
@@ -64,7 +78,7 @@ const FONT_IMPORT =
 // Trilho com comando e Motorizado ainda não têm preço/regra definidos.
 const MODELOS = {
   Cortina: ["Trilho suíço", "Tubo Vaza", "Varão", "Trilho curvo", "Trilho com comando", "Motorizado"],
-  Persiana: ["Horizontal", "Vertical", "Rolo", "Romana", "Painel", "Box", "Motorizada"],
+  Persiana: ["Horizontal", "Vertical", "Rolo", "Romana", "Cascade", "Stripe", "Painel", "Celular", "Box", "Motorizada"],
 };
 // Só esses modelos têm o Orçamento automático por enquanto — os outros
 // mostram um aviso "ainda não configurado" e mantêm Valor manual.
@@ -406,6 +420,9 @@ const SUPORTES_MINIMOS_TUBO_VAZA = 2;
 // valor atualizado automaticamente, sem precisar de um Context/prop novo.
 function aplicarPrecosCarregados(mapa) {
   if (!mapa || Object.keys(mapa).length === 0) return;
+  // Persianas: preços "persiana_*" da mesma tabela (regras ficam em
+  // src/lib/tabelaPersianas.js).
+  aplicarPrecosPersiana(mapa);
   const aplicar = (obj, chavePorLabel) => {
     Object.entries(chavePorLabel).forEach(([label, chave]) => {
       if (mapa[chave] != null) obj[label] = mapa[chave];
@@ -1368,6 +1385,7 @@ function normalizarPeca(p) {
     modelo: p.modelo ?? null,
     valor: p.valor ?? null,
     orcamento: p.orcamento ?? null,
+    orcamentoPersiana: p.orcamentoPersiana ?? null,
     historico: p.historico ?? [],
     statusProducao: p.statusProducao ?? null,
     vendaFeitaPor: p.vendaFeitaPor ?? null,
@@ -2259,7 +2277,31 @@ function Shell({
            ocupa a largura toda (com a margem normal do conteúdo). */
         .rail-user-mobile,
         .header-hamburger-mobile { display: none !important; }
+        .mobile-tabs { display: none; }
+        .mobile-tab {
+          display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
+          padding: 10px 14px; border-radius: 12px; border: none; background: transparent;
+          color: var(--ink-soft); font-size: 14px; font-weight: 500; white-space: nowrap;
+        }
+        .mobile-tab.active {
+          background: linear-gradient(90deg, var(--accent-soft), rgba(92,200,255,0.06));
+          color: var(--ink); font-weight: 600;
+          box-shadow: inset 3px 0 0 var(--accent), 0 0 18px rgba(216,149,95,0.14);
+        }
+        .mobile-tab.active svg { color: var(--accent); }
         @media (max-width: 640px) {
+          /* Celular: em vez da barra lateral, um menu horizontal que arrasta
+             pro lado (igual ao app de trade) logo abaixo do cabeçalho. */
+          .nav-rail { display: none !important; }
+          .header-hamburger-mobile { display: none !important; }
+          .mobile-tabs {
+            display: flex; flex-shrink: 0; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+            padding: 8px 12px 6px; background: rgba(9,14,26,0.6);
+            border-bottom: 1px solid var(--line);
+            scrollbar-width: thin; scrollbar-color: rgba(143,157,182,0.45) transparent;
+          }
+          .mobile-tabs::-webkit-scrollbar { height: 4px; }
+          .mobile-tabs::-webkit-scrollbar-thumb { background: rgba(143,157,182,0.45); border-radius: 4px; }
           .nav-rail.collapsed { width: 0; border-right: none; }
           .rail-hamburger-desktop { display: none !important; }
           .header-hamburger-mobile { display: flex !important; }
@@ -2416,6 +2458,18 @@ function Shell({
             </div>
           </div>
         </header>
+        {session && (
+          <MobileTabs
+            session={session}
+            rota={rota}
+            onGoHome={onGoHome}
+            onOpenCalendario={onOpenCalendario}
+            onOpenKanban={onOpenKanban}
+            onOpenPainel={onOpenPainel}
+            onOpenUserMenu={onOpenUserMenu}
+            onLogout={onLogout}
+          />
+        )}
 
         <div className="app-content" style={fillHeight ? { overflow: "hidden" } : undefined}>
           <div
@@ -2478,6 +2532,43 @@ function HeaderSearch({ value, onChange }) {
    da própria barra) = ícone + nome (230px). Logout sempre fixo no rodapé,
    nos dois estados.
    ============================================================ */
+function itensDoMenu(papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalendario }) {
+  const itens = [];
+  if (canGerenciarUsuarios(papel)) {
+    itens.push({ Icon: LayoutGrid, label: "Painel", onClick: onOpenPainel, telas: ["painel"] });
+  }
+  itens.push({ Icon: ClipboardList, label: "Pedidos", onClick: onGoHome, telas: ["lista", "pedido", "ficha", "usuarios"] });
+  if (canVerCalendario(papel)) {
+    itens.push({ Icon: BarChart3, label: "Funil", onClick: onOpenKanban, rotate: true, telas: ["kanban"] });
+    itens.push({ Icon: CalendarDays, label: "Calendário", onClick: onOpenCalendario, telas: ["calendario"] });
+  }
+  return itens;
+}
+
+/* Menu horizontal do celular: arrasta pro lado, item ativo com barra de
+   destaque. Só aparece em telas estreitas (ver .mobile-tabs no CSS). */
+function MobileTabs({ session, rota, onGoHome, onOpenCalendario, onOpenKanban, onOpenPainel, onOpenUserMenu, onLogout }) {
+  const itens = itensDoMenu(session.papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalendario });
+  return (
+    <div className="mobile-tabs">
+      {itens.map(({ Icon, label, onClick, rotate, telas }) => (
+        <button key={label} className={telas.includes(rota) ? "mobile-tab active" : "mobile-tab"} onClick={onClick}>
+          <Icon size={18} style={{ transform: rotate ? "rotate(180deg)" : undefined }} />
+          {label}
+        </button>
+      ))}
+      <button className="mobile-tab" onClick={onOpenUserMenu}>
+        <RoleDot papel={session.papel} />
+        {session.nome}
+      </button>
+      <button className="mobile-tab" onClick={onLogout} style={{ color: "var(--locked)" }}>
+        <LogOut size={18} />
+        Sair
+      </button>
+    </div>
+  );
+}
+
 function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendario, onOpenKanban, onOpenPainel, onOpenUserMenu, onLogout, rota }) {
   const papel = session.papel;
   const ir = (fn) => {
@@ -2488,15 +2579,7 @@ function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendar
   // Ordem: Painel (só Gestor/Gestor Master, primeiro) → Pedidos → Funil
   // (gráfico de barras "de cabeça pra baixo", lembrando um funil) →
   // Calendário (último).
-  const itens = [];
-  if (canGerenciarUsuarios(papel)) {
-    itens.push({ Icon: LayoutGrid, label: "Painel", onClick: onOpenPainel, telas: ["painel"] });
-  }
-  itens.push({ Icon: ClipboardList, label: "Pedidos", onClick: onGoHome, telas: ["lista", "pedido", "ficha", "usuarios"] });
-  if (canVerCalendario(papel)) {
-    itens.push({ Icon: BarChart3, label: "Funil", onClick: onOpenKanban, rotate: true, telas: ["kanban"] });
-    itens.push({ Icon: CalendarDays, label: "Calendário", onClick: onOpenCalendario, telas: ["calendario"] });
-  }
+  const itens = itensDoMenu(papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalendario });
 
   return (
     <nav className={open ? "nav-rail expanded" : "nav-rail collapsed"}>
@@ -6500,6 +6583,225 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
    VALOR DA PEÇA — só quem vende/gerencia enxerga esta seção (a
    Ficha já não renderiza ValorPeca para Fábrica/Instalador).
    ============================================================ */
+/* ============================================================
+   FICHA — Orçamento automático de PERSIANAS
+   Preços e regras: src/lib/tabelaPersianas.js (tabela Fujiflex).
+   ============================================================ */
+function FichaOrcamentoPersiana({ peca, calc, editar, onUpdate }) {
+  const modelo = peca.modelo;
+  const orc = calc.orc;
+  const itens = calc.itens;
+  const variante = precisaVariante(modelo, orc);
+  const opcoes = opcoesDoModelo(modelo, orc).filter((op) => !op.grupos || (calc.item && op.grupos.includes(calc.item.grupo)));
+  const motores = motoresDoModelo(modelo, orc);
+  const grupos = [];
+  itens.forEach((i) => {
+    let g = grupos.find((x) => x.nome === i.grupo);
+    if (!g) grupos.push((g = { nome: i.grupo, itens: [] }));
+    g.itens.push(i);
+  });
+  const setOpcao = (op, marcado) => {
+    const opcoesNovas = { ...(orc.opcoes || {}), [op.id]: marcado };
+    if (marcado && op.excl) {
+      opcoesDoModelo(modelo, orc).forEach((o) => {
+        if (o.id !== op.id && o.excl === op.excl) opcoesNovas[o.id] = false;
+      });
+    }
+    onUpdate({ opcoes: opcoesNovas });
+  };
+  const mudaHorizontal = (linha) => onUpdate({ linha: linha || null, variante: null, item: null, opcoes: {}, motor: null, controle: null, acessorios: {} });
+  const mudaVariante = (v) => onUpdate({ variante: v || null });
+  const rotuloItem = (i) => `${i.nome}${i.cores ? ` — ${i.cores}` : ""}${i.aDefinir ? " (preço a definir)" : ""}`;
+  const soLeitura = !editar;
+  const motorAtual = motores.find((m) => m.id === orc.motor);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {modelo === "Horizontal" && (
+        <label style={{ display: "block" }}>
+          <span style={labelStyle}>Espessura da lâmina</span>
+          <select value={orc.linha || ""} onChange={(e) => mudaHorizontal(e.target.value)} disabled={soLeitura} style={inputStyle()}>
+            <option value="">Selecione…</option>
+            {linhasHorizontal().map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.rotulo}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {variante && (
+        <label style={{ display: "block" }}>
+          <span style={labelStyle}>{variante.rotulo}</span>
+          <select value={orc.variante || ""} onChange={(e) => mudaVariante(e.target.value)} disabled={soLeitura} style={inputStyle()}>
+            <option value="">Selecione…</option>
+            {variante.opcoes.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.rotulo}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {(modelo !== "Horizontal" || orc.linha) && (!variante || orc.variante) && (
+        <label style={{ display: "block" }}>
+          <span style={labelStyle}>Tecido / coleção</span>
+          <select value={orc.item || ""} onChange={(e) => onUpdate({ item: e.target.value || null })} disabled={soLeitura} style={inputStyle()}>
+            <option value="">Selecione…</option>
+            {grupos.map((g) => (
+              <optgroup key={g.nome} label={g.nome}>
+                {g.itens.map((i) => (
+                  <option key={i.id} value={i.id} disabled={i.preco == null}>
+                    {rotuloItem(i)}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {calc.item && opcoes.length > 0 && (
+        <div>
+          <div style={labelStyle}>Opcionais</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {opcoes.map((op) => {
+              if (op.requer && !opcaoAtiva(modelo, orc, opcoesDoModelo(modelo, orc).find((o) => o.id === op.requer))) return null;
+              const ativo = opcaoAtiva(modelo, orc, op);
+              return (
+                <div key={op.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: soLeitura ? "default" : "pointer" }}>
+                    <input type="checkbox" checked={ativo} disabled={soLeitura} onChange={(e) => setOpcao(op, e.target.checked)} />
+                    {op.rotulo}
+                  </label>
+                  {op.tipo === "qtd-pct" && ativo && (
+                    <input
+                      type="number"
+                      min="1"
+                      inputMode="numeric"
+                      value={orc.qtd?.[op.id] ?? ""}
+                      disabled={soLeitura}
+                      placeholder="Qtd. de cores"
+                      onChange={(e) => onUpdate({ qtd: { ...(orc.qtd || {}), [op.id]: e.target.value } })}
+                      style={{ ...inputStyle(), width: 130 }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {calc.item && aceitaMotor(modelo) && motores.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 8 }}>
+          <label style={{ display: "block" }}>
+            <span style={labelStyle}>Motor (opcional)</span>
+            <select
+              value={orc.motor || ""}
+              onChange={(e) => onUpdate({ motor: e.target.value || null, acessorios: {} })}
+              disabled={soLeitura}
+              style={inputStyle()}
+            >
+              <option value="">Sem motor</option>
+              {motores.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.rotulo}
+                  {m.preco == null ? " (preço a definir)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          {orc.motor && (
+            <label style={{ display: "block" }}>
+              <span style={labelStyle}>Controle (opcional)</span>
+              <select value={orc.controle || ""} onChange={(e) => onUpdate({ controle: e.target.value || null })} disabled={soLeitura} style={inputStyle()}>
+                <option value="">Sem controle</option>
+                {controlesPersiana().map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.rotulo}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {motorAtual &&
+            acoesAcessorios(motorAtual.id).map((a) => (
+              <label key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={!!orc.acessorios?.[a.id]}
+                  disabled={soLeitura}
+                  onChange={(e) => onUpdate({ acessorios: { ...(orc.acessorios || {}), [a.id]: e.target.checked } })}
+                />
+                {a.rotulo}
+              </label>
+            ))}
+        </div>
+      )}
+
+      {calc.item && (
+        <MoedaCampo label="Outros valores (R$) — opcional" valor={orc.extra} disabled={soLeitura} onChange={(v) => onUpdate({ extra: v })} />
+      )}
+
+      {calc.faltas.length > 0 && (
+        <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>Para calcular, informe: {calc.faltas.join(", ")}.</div>
+      )}
+      {calc.avisos.map((a, i) => (
+        <div key={i} style={{ fontSize: 12.5, color: "var(--amber)", display: "flex", gap: 6 }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} /> {a}
+        </div>
+      ))}
+
+      {calc.pronto && (
+        <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px", background: "var(--field)" }}>
+          {calc.linhas.map((l, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13 }}>{l.rotulo}</div>
+                {l.detalhe && <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{l.detalhe}</div>}
+              </div>
+              <div style={{ fontFamily: "var(--mono)", fontSize: 13, flexShrink: 0 }}>{fmtValor(l.valor)}</div>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingTop: 10 }}>
+            <span style={{ fontSize: 12, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Total da peça</span>
+            <span style={{ fontFamily: "var(--display)", fontSize: 26, fontWeight: 700 }}>{fmtValor(calc.total)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+function acoesAcessorios(motorId) {
+  return acessoriosDoMotor(motorId);
+}
+
+/* Campo de valor em R$ com a mesma máscara de dígitos do Valor da peça. */
+function MoedaCampo({ label, valor, onChange, disabled }) {
+  const [raw, setRaw] = useState(numToDigits(valor));
+  useEffect(() => {
+    setRaw(numToDigits(valor));
+  }, [valor]);
+  return (
+    <label style={{ display: "block" }}>
+      <span style={labelStyle}>{label}</span>
+      <input
+        value={formatValorFromDigits(raw)}
+        disabled={disabled}
+        onChange={(e) => setRaw(digitsFromInput(e.target.value, 9))}
+        onBlur={() => {
+          const v = raw ? digitsToNum(raw) : null;
+          if (v !== valor) onChange(v);
+        }}
+        inputMode="numeric"
+        placeholder="R$ 0,00"
+        style={{ ...inputStyle(), fontFamily: "var(--mono)", textAlign: "right" }}
+      />
+    </label>
+  );
+}
+
 function ValorPeca({ peca, onUpdate }) {
   const [raw, setRaw] = useState(numToDigits(peca.valor));
   const inputRef = useRef(null);
@@ -6608,8 +6910,11 @@ function FichaPeca({ pedido, ambienteId, pecaId, papel, nome, onChange, onBack }
     onChange(updated);
   };
 
-  const setProduto = (produto) => updatePeca({ produto, modelo: null });
-  const setModelo = (modelo) => updatePeca({ modelo });
+  const setProduto = (produto) => updatePeca({ produto, modelo: null, orcamentoPersiana: null });
+  const setModelo = (modelo) => updatePeca({ modelo, orcamentoPersiana: null });
+  const updatePecaOrcPersiana = (patch) =>
+    updatePeca({ orcamentoPersiana: { ...(peca.orcamentoPersiana || orcamentoPersianaPadrao()), ...patch } });
+  const calcPersiana = calcularOrcamentoPersiana(peca);
 
   const updatePecaOrcamento = (patch) => updatePeca({ orcamento: { ...(peca.orcamento || orcamentoPadrao()), ...patch } });
   const calcOrcamento = calcularOrcamentoPeca(peca);
@@ -6636,6 +6941,16 @@ function FichaPeca({ pedido, ambienteId, pecaId, papel, nome, onChange, onBack }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peca.produto, peca.modelo, peca.largura, JSON.stringify(peca.orcamento)]);
+
+  // Persiana: com o orçamento completo (tecido + medidas), o Valor da peça
+  // passa a ser o total calculado pela tabela de preços. Enquanto estiver
+  // incompleto, não mexe no valor (peças antigas com valor digitado à mão
+  // continuam como estavam).
+  useEffect(() => {
+    if (!canEditarOrcamento(papel)) return;
+    if (calcPersiana.usa && calcPersiana.pronto && calcPersiana.total !== peca.valor) updatePeca({ valor: calcPersiana.total });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peca.produto, peca.modelo, peca.largura, peca.altura, calcPersiana.pronto, calcPersiana.total]);
 
   const handleExcluir = () => {
     const updated = {
@@ -6757,13 +7072,18 @@ function FichaPeca({ pedido, ambienteId, pecaId, papel, nome, onChange, onBack }
           </Section>
         )
       ) : null}
-      {(peca.produto !== "Cortina" || !MODELOS_COM_ORCAMENTO.includes(peca.modelo)) && (
+      {peca.produto === "Persiana" && calcPersiana.usa && canVerValores(papel) && (
+        <Section title="Orçamento">
+          <FichaOrcamentoPersiana peca={peca} calc={calcPersiana} editar={canEditarOrcamento(papel)} onUpdate={updatePecaOrcPersiana} />
+        </Section>
+      )}
+      {(peca.produto !== "Cortina" || !MODELOS_COM_ORCAMENTO.includes(peca.modelo)) &&
+        !(peca.produto === "Persiana" && calcPersiana.usa && calcPersiana.pronto) &&
         canVerValores(papel) && (
-          <Section title="Valor">
+          <Section title={calcPersiana.usa ? "Valor manual (vale enquanto o orçamento acima estiver incompleto)" : "Valor"}>
             <ValorPeca peca={peca} onUpdate={updatePeca} />
           </Section>
-        )
-      )}
+        )}
 
       <Section title="Características de produção">
         {peca.produto === "Cortina" && canVerMateriaisProducao(papel) && calcOrcamento.usaOrcamento ? (
