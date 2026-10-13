@@ -16,7 +16,6 @@ import {
   inserirEvento,
   removerEvento,
   subscribeRealtime,
-  atualizarMinhaCor,
   loadPrecosOrcamento,
 } from "./lib/db";
 import { supabase } from "./lib/supabaseClient";
@@ -1454,27 +1453,13 @@ function formatTelefone(raw) {
   return `(${ddd}) ${primeiro}-${meio}${fim ? "-" + fim : ""}`;
 }
 /* ------------------------------------------------------------
-   COR DE DESTAQUE POR USUÁRIO
+   COR DE DESTAQUE DO SISTEMA
    ------------------------------------------------------------
-   Cada login escolhe sua própria cor no Menu de usuário (armazenada em
-   perfis.cor). Ela substitui apenas --accent/--accent-soft/--accent-ink
-   no CSS — as cores de status (venda feita, instalado etc.) continuam
-   fixas, então o significado das etiquetas nunca muda de pessoa pra
-   pessoa, só a identidade visual dos botões/cabeçalho. */
-const COR_PADRAO = "#28466A";
-const PALETA_CORES = [
-  "#28466A", // azul (padrão)
-  "#3E6B50", // verde
-  "#A34D61", // rosa
-  "#B8860B", // dourado
-  "#C1631A", // laranja
-  "#6B4C9A", // roxo
-  "#1B6E76", // teal
-  "#97372A", // vermelho
-];
-function corValida(hex) {
-  return /^#[0-9a-fA-F]{6}$/.test(hex || "");
-}
+   Identidade visual única e fixa do sistema — veja --accent/--accent-soft/
+   --accent-ink no CSS. As cores de status (venda feita, instalado etc.)
+   são independentes e fixas: o significado das etiquetas nunca muda. */
+const COR_MARCA = "#1F3A52";
+const COR_BRASS = "#B98A3D";
 function hexParaRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
   if (!m) return null;
@@ -1944,21 +1929,6 @@ export default function App() {
     setRoute({ screen: "lista" });
   };
 
-  // Cada pessoa escolhe a própria cor no Menu de usuário. Atualiza a tela
-  // na hora (não espera o servidor) e persiste em segundo plano — se falhar,
-  // desfaz a mudança local e avisa.
-  const handleCorChange = useCallback(
-    async (cor) => {
-      const anterior = session?.cor || null;
-      setSession((prev) => (prev ? { ...prev, cor } : prev));
-      const ok = await atualizarMinhaCor(cor);
-      if (!ok) {
-        setSession((prev) => (prev ? { ...prev, cor: anterior } : prev));
-      }
-    },
-    [session]
-  );
-
   // Buscar filtra a lista de pedidos que já está na tela (Pedidos, Funil
   // ou Calendário — cada uma na sua própria forma), sem trocar de tela.
   const handleBuscaChange = (valor) => setBusca(valor);
@@ -2000,7 +1970,6 @@ export default function App() {
             index={index}
             onClose={() => setShowUserMenu(false)}
             onLogout={handleLogout}
-            onCorChange={handleCorChange}
             onOpenUsuarios={
               canGerenciarUsuarios(session.papel)
                 ? () => {
@@ -2132,7 +2101,7 @@ function Shell({
   userMenu,
 }) {
   const [railOpen, setRailOpen] = useState(false);
-  const corAccent = corValida(session?.cor) ? session.cor : COR_PADRAO;
+  const corAccent = COR_MARCA;
   const corAccentSoft = clarearCor(corAccent, 0.86);
   const corAccentInk = corDeTextoSobre(corAccent);
 
@@ -2141,14 +2110,15 @@ function Shell({
       <style>{`
         ${FONT_IMPORT}
         :root {
-          --bg: #F5F1E7;
+          --bg: #F1ECE0;
           --surface: #FFFFFF;
-          --ink: #22241F;
-          --ink-soft: #6B6C60;
-          --line: #DBD3BF;
+          --ink: #211D1A;
+          --ink-soft: #6E6558;
+          --line: #E1D7C4;
           --accent: ${corAccent};
           --accent-ink: ${corAccentInk};
           --accent-soft: ${corAccentSoft};
+          --brass: ${COR_BRASS};
           --locked: #97372A;
           --locked-soft: #F3E3DF;
           --success: #3E6B50;
@@ -2163,11 +2133,15 @@ function Shell({
           --rose-soft: #F1DDE2;
           --mono: 'IBM Plex Mono', ui-monospace, monospace;
           --sans: 'IBM Plex Sans', system-ui, sans-serif;
+          --shadow-sm: 0 1px 2px rgba(33,29,26,0.07), 0 1px 1px rgba(33,29,26,0.05);
+          --shadow-md: 0 8px 24px rgba(33,29,26,0.12), 0 2px 6px rgba(33,29,26,0.08);
         }
         * { box-sizing: border-box; }
         html, body, #root { height: 100%; margin: 0; }
         body { overflow: hidden; background: var(--bg); }
-        button { font-family: inherit; cursor: pointer; }
+        button { font-family: inherit; cursor: pointer; transition: filter 0.12s ease, box-shadow 0.12s ease, transform 0.05s ease, background-color 0.12s ease; }
+        button:not(:disabled):hover { filter: brightness(0.96); }
+        button:not(:disabled):active { transform: translateY(1px); }
         input, select, textarea { font-family: inherit; }
         input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
           outline: 2px solid var(--accent); outline-offset: 1px;
@@ -2212,6 +2186,15 @@ function Shell({
           padding-top: env(safe-area-inset-top, 0px);
           position: relative;
           z-index: 10;
+        }
+        .app-header::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 2px;
+          background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 70%, var(--brass) 100%);
         }
         .header-row {
           display: grid;
@@ -2271,7 +2254,7 @@ function Shell({
       )}
 
       <div className="app-main">
-        <header className="app-header" style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
+        <header className="app-header" style={{ background: "var(--surface)", boxShadow: "var(--shadow-sm)" }}>
           <div className="header-row">
             {session && (
               <button
@@ -2303,6 +2286,25 @@ function Shell({
               }}
             >
               {showHome && <ArrowLeft size={18} color="var(--ink-soft)" style={{ flexShrink: 0 }} />}
+              {!showHome && (
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: "var(--accent)",
+                    color: "var(--brass)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}
+                >
+                  M
+                </div>
+              )}
               <div style={{ minWidth: 0 }}>
                 <div
                   style={{
@@ -2614,12 +2616,10 @@ function LoginScreen({ onLogin }) {
 /* ============================================================
    MENU DE USUÁRIO (sessão atual)
    ============================================================ */
-function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios, onCorChange }) {
+function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios }) {
   const [showInfo, setShowInfo] = useState(false);
   const [carregandoInfo, setCarregandoInfo] = useState(false);
   const [vendidoMes, setVendidoMes] = useState(null);
-  const [showCor, setShowCor] = useState(false);
-  const corAtual = corValida(session.cor) ? session.cor : COR_PADRAO;
 
   const abrirInformacoes = async () => {
     const abrindo = !showInfo;
@@ -2651,9 +2651,9 @@ function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios, on
           background: "var(--surface)",
           width: "100%",
           maxWidth: 640,
-          borderRadius: "10px 10px 0 0",
+          borderRadius: "14px 14px 0 0",
           padding: 20,
-          borderTop: "1px solid var(--line)",
+          boxShadow: "var(--shadow-md)",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -2696,71 +2696,6 @@ function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios, on
             <button onClick={onOpenUsuarios} style={{ ...ghostBtnStyle, justifyContent: "flex-start" }}>
               <UsersIcon size={15} /> Gerenciar usuários
             </button>
-          )}
-          {onCorChange && (
-            <>
-              <button
-                onClick={() => setShowCor((v) => !v)}
-                style={{ ...ghostBtnStyle, justifyContent: "flex-start" }}
-              >
-                <span
-                  style={{
-                    width: 14,
-                    height: 14,
-                    borderRadius: 999,
-                    background: corAtual,
-                    border: "1px solid rgba(0,0,0,0.15)",
-                    display: "inline-block",
-                  }}
-                />
-                Cor do app
-              </button>
-              {showCor && (
-                <div style={{ ...cardStyle, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginBottom: 10 }}>
-                    Escolha a cor que aparece nos botões e no cabeçalho — vale só para o seu login.
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-                    {PALETA_CORES.map((cor) => (
-                      <button
-                        key={cor}
-                        onClick={() => onCorChange(cor)}
-                        title={cor}
-                        style={{
-                          width: 30,
-                          height: 30,
-                          borderRadius: 999,
-                          background: cor,
-                          border:
-                            corAtual.toLowerCase() === cor.toLowerCase()
-                              ? "2.5px solid var(--ink)"
-                              : "1px solid rgba(0,0,0,0.15)",
-                          padding: 0,
-                          cursor: "pointer",
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, color: "var(--ink-soft)" }}>
-                    Outra cor:
-                    <input
-                      type="color"
-                      value={corAtual}
-                      onChange={(e) => onCorChange(e.target.value)}
-                      style={{
-                        width: 40,
-                        height: 28,
-                        padding: 0,
-                        border: "1px solid var(--line)",
-                        borderRadius: 6,
-                        background: "none",
-                        cursor: "pointer",
-                      }}
-                    />
-                  </label>
-                </div>
-              )}
-            </>
           )}
           <button onClick={onLogout} style={{ ...ghostBtnStyle, justifyContent: "flex-start", color: "var(--locked)" }}>
             <LogOut size={15} /> Sair
@@ -6766,12 +6701,18 @@ function FichaMedidaField({ label, raw, setRaw, onBlur, error, optional }) {
    SHARED STYLES
    ============================================================ */
 const labelStyle = { display: "block", fontSize: 11.5, color: "var(--ink-soft)", marginBottom: 4 };
-const cardStyle = { background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: 14 };
+const cardStyle = {
+  background: "var(--surface)",
+  border: "1px solid var(--line)",
+  borderRadius: 10,
+  padding: 14,
+  boxShadow: "var(--shadow-sm)",
+};
 const emptyStateStyle = {
   fontSize: 13,
   color: "var(--ink-soft)",
   border: "1px dashed var(--line)",
-  borderRadius: 8,
+  borderRadius: 10,
   padding: "18px 14px",
   textAlign: "center",
   marginBottom: 12,
@@ -6782,7 +6723,7 @@ const ghostBtnStyle = {
   gap: 6,
   background: "var(--surface)",
   border: "1px solid var(--line)",
-  borderRadius: 6,
+  borderRadius: 8,
   padding: "7px 12px",
   fontSize: 12.5,
   fontWeight: 500,
@@ -6794,7 +6735,7 @@ const smallActionStyle = {
   gap: 5,
   background: "var(--surface)",
   border: "1px solid var(--line)",
-  borderRadius: 5,
+  borderRadius: 7,
   padding: "5px 9px",
   fontSize: 11.5,
   fontWeight: 500,
@@ -6827,7 +6768,7 @@ function primaryBtnStyle(disabled) {
     background: disabled ? "#B9BBB1" : "var(--accent)",
     color: "var(--accent-ink)",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
     padding: "11px 14px",
     fontSize: 13.5,
     fontWeight: 600,
@@ -6836,13 +6777,14 @@ function primaryBtnStyle(disabled) {
     justifyContent: "center",
     gap: 6,
     cursor: disabled ? "not-allowed" : "pointer",
+    boxShadow: disabled ? "none" : "var(--shadow-sm)",
   };
 }
 function inputStyle() {
   return {
     width: "100%",
     border: "1px solid var(--line)",
-    borderRadius: 6,
+    borderRadius: 8,
     padding: "9px 10px",
     fontSize: 13.5,
     background: "var(--surface)",
