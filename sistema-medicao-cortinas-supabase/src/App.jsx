@@ -48,6 +48,8 @@ import {
   Pencil,
   RotateCcw,
   Printer,
+  Trophy,
+  TrendingUp,
 } from "lucide-react";
 
 /* ============================================================
@@ -2773,71 +2775,284 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
 
   const totalVendas = dados.reduce((soma, d) => soma + d.vendas, 0);
   const totalPerdido = dados.reduce((soma, d) => soma + d.perdido, 0);
+  const totalGeral = totalVendas + totalPerdido;
+  const taxaFechamento = totalGeral > 0 ? (totalVendas / totalGeral) * 100 : 0;
+  const pctPerdido = totalGeral > 0 ? (totalPerdido / totalGeral) * 100 : 0;
+  const maxVendas = dados.reduce((m, d) => Math.max(m, d.vendas), 0);
+  const lider = dados.length > 0 && dados[0].vendas > 0 ? dados[0] : null;
+  const mediaPorVendedor = dados.length > 0 ? totalVendas / dados.length : 0;
+  const mesLabel = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
   return (
     <div style={{ paddingTop: 18 }}>
       <button onClick={onBack} style={{ ...ghostBtnStyle, marginBottom: 14 }}>
         <ArrowLeft size={14} /> Voltar
       </button>
-      <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>Painel de vendas</h1>
-      <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 16, textTransform: "capitalize" }}>
-        {new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
+        <div>
+          <h1 style={{ fontSize: 30, lineHeight: 1.05, margin: 0 }}>Painel de vendas</h1>
+          <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #E8A870, #B96C3F)", margin: "8px 0 6px" }} />
+          <div style={{ fontSize: 13, color: "var(--ink-soft)", textTransform: "capitalize" }}>{mesLabel}</div>
+        </div>
+        <span style={painelPillStyle}>
+          <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)" }} />
+          Ao vivo
+        </span>
       </div>
 
       {carregando ? (
         <div style={{ padding: "32px 0", textAlign: "center", color: "var(--ink-soft)" }}>Calculando…</div>
       ) : (
         <>
-          {/* Um quadro só, com os dois blocos (Vendas feitas / Orçamentos
-              perdidos) empilhados um embaixo do outro dentro dele. */}
-          <PainelResumoCard titulo="Total geral" vendas={totalVendas} perdido={totalPerdido} style={{ marginBottom: 16 }} />
-
-          {dados.length === 0 ? (
-            <div style={emptyStateStyle}>Nenhum vendedor/gestor cadastrado ainda.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {dados.map(({ usuario, vendas, perdido }) => (
-                <PainelResumoCard
-                  key={usuario.id}
-                  titulo={usuario.nome}
-                  papel={usuario.papel}
-                  vendas={vendas}
-                  perdido={perdido}
-                />
-              ))}
+          {/* Quadro principal: número grande do mês + as duas barras de fechamento */}
+          <div style={painelHeroStyle}>
+            <div style={painelEyebrowStyle}>Resumo do mês</div>
+            <div style={{ fontSize: 14, color: "var(--ink)", marginTop: 14 }}>Vendido no mês</div>
+            <div
+              style={{
+                fontFamily: "var(--display)",
+                fontSize: "clamp(42px, 11vw, 64px)",
+                fontWeight: 700,
+                lineHeight: 1.05,
+                letterSpacing: "0.01em",
+                fontVariantNumeric: "tabular-nums",
+                margin: "2px 0 6px",
+              }}
+            >
+              {fmtValor(totalVendas)}
             </div>
-          )}
+            <div style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 18 }}>
+              {totalPerdido > 0 ? (
+                <>
+                  <strong style={{ color: "var(--locked)", fontWeight: 600 }}>{fmtValor(totalPerdido)}</strong> em orçamentos perdidos neste mês
+                </>
+              ) : (
+                "Nenhum orçamento perdido neste mês"
+              )}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 10 }}>
+              <PainelBarraCard
+                Icon={TrendingUp}
+                titulo="Taxa de fechamento"
+                valor={fmtPct(taxaFechamento)}
+                pct={taxaFechamento}
+                cor="var(--success)"
+              />
+              <PainelBarraCard
+                Icon={X}
+                titulo="Orçamentos perdidos"
+                valor={fmtValor(totalPerdido)}
+                pct={pctPerdido}
+                cor="var(--locked)"
+              />
+            </div>
+          </div>
+
+          {/* Três quadros menores */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+              gap: 10,
+              margin: "12px 0 16px",
+            }}
+          >
+            <PainelMiniCard Icon={UsersIcon} titulo="Vendedores ativos" valor={String(dados.length)} />
+            <PainelMiniCard
+              Icon={Trophy}
+              titulo="Líder do mês"
+              valor={lider ? lider.usuario.nome : "—"}
+              detalhe={lider ? fmtValor(lider.vendas) : undefined}
+            />
+            <PainelMiniCard Icon={BarChart3} titulo="Média por vendedor" valor={fmtValor(mediaPorVendedor)} />
+          </div>
+
+          {/* Ranking de cada vendedor */}
+          <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
+              <div style={painelEyebrowStyle}>Ranking do mês</div>
+            </div>
+            {dados.length === 0 ? (
+              <div style={{ ...emptyStateStyle, margin: 14 }}>Nenhum vendedor/gestor cadastrado ainda.</div>
+            ) : (
+              dados.map(({ usuario, vendas, perdido }, i) => (
+                <div
+                  key={usuario.id}
+                  style={{
+                    padding: "14px 16px",
+                    borderTop: i === 0 ? "none" : "1px solid var(--line)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, minWidth: 0 }}>
+                    <span
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 8,
+                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontFamily: "var(--display)",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        background: i === 0 && vendas > 0 ? "linear-gradient(135deg, #E8A870, #B96C3F)" : "var(--field)",
+                        color: i === 0 && vendas > 0 ? "#2B140A" : "var(--ink-soft)",
+                        border: "1px solid var(--line)",
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                        <RoleDot papel={usuario.papel} />
+                        <span style={{ fontSize: 15, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {usuario.nome}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 1 }}>
+                        {usuario.papel}
+                        {totalVendas > 0 && vendas > 0 && <> · {fmtPct((vendas / totalVendas) * 100)} do total</>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div
+                        style={{
+                          fontFamily: "var(--display)",
+                          fontSize: 22,
+                          fontWeight: 700,
+                          color: "var(--success)",
+                          lineHeight: 1.1,
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {fmtValor(vendas)}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: perdido > 0 ? "var(--locked)" : "var(--ink-soft)" }}>
+                        {perdido > 0 ? `${fmtValor(perdido)} perdido` : "Nada perdido"}
+                      </div>
+                    </div>
+                  </div>
+                  <PainelBarra pct={maxVendas > 0 ? (vendas / maxVendas) * 100 : 0} cor="var(--success)" />
+                </div>
+              ))
+            )}
+          </div>
         </>
       )}
     </div>
   );
 }
 
-/* Um quadro (cardStyle) com dois blocos dentro, um embaixo do outro: Vendas
-   feitas em cima, Orçamentos perdidos embaixo. Usado tanto para o resumo
-   geral (sem `titulo`) quanto para o quadro de cada vendedor (com
-   `titulo`/`papel`) — sempre a mesma estrutura de "1 quadro com 2 dentro". */
-function PainelResumoCard({ titulo, papel, vendas, perdido, style }) {
+function fmtPct(n) {
+  return `${Math.round(n).toLocaleString("pt-BR")}%`;
+}
+
+const painelEyebrowStyle = {
+  fontSize: 11.5,
+  fontWeight: 600,
+  letterSpacing: "0.14em",
+  textTransform: "uppercase",
+  color: "var(--accent)",
+};
+const painelPillStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "var(--success)",
+  background: "var(--success-soft)",
+  border: "1px solid var(--success)",
+  borderRadius: 999,
+  padding: "4px 11px",
+  flexShrink: 0,
+};
+const painelHeroStyle = {
+  position: "relative",
+  overflow: "hidden",
+  borderRadius: 18,
+  padding: "18px 16px",
+  border: "1px solid rgba(216,149,95,0.34)",
+  background:
+    "radial-gradient(520px 260px at 100% 0%, rgba(216,149,95,0.22), transparent 65%), linear-gradient(160deg, #3A2219 0%, #25150F 100%)",
+  boxShadow: "var(--shadow-md), 0 0 40px rgba(216,149,95,0.07)",
+};
+
+/* Barra de progresso (0–100). */
+function PainelBarra({ pct, cor }) {
+  const largura = Math.max(0, Math.min(100, pct || 0));
   return (
-    <div style={{ ...cardStyle, ...style }}>
-      {titulo && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, minWidth: 0 }}>
-          {papel && <RoleDot papel={papel} />}
-          <span
-            style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-          >
-            {titulo}
-          </span>
-        </div>
-      )}
-      <div style={{ paddingBottom: 10, borderBottom: "1px solid var(--line)", marginBottom: 10 }}>
-        <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 3 }}>Vendas feitas</div>
-        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--success)" }}>{fmtValor(vendas)}</div>
+    <div style={{ height: 8, borderRadius: 999, background: "rgba(255,236,214,0.09)", overflow: "hidden" }}>
+      <div
+        style={{
+          width: `${largura}%`,
+          height: "100%",
+          borderRadius: 999,
+          background: cor,
+          transition: "width 0.5s ease",
+        }}
+      />
+    </div>
+  );
+}
+
+/* Quadro com ícone, título, valor à direita e barra embaixo. */
+function PainelBarraCard({ Icon, titulo, valor, pct, cor }) {
+  return (
+    <div
+      style={{
+        borderRadius: 14,
+        padding: "13px 14px",
+        border: "1px solid var(--line)",
+        background: "rgba(20,10,6,0.35)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, minWidth: 0 }}>
+        <Icon size={18} color={cor} style={{ flexShrink: 0 }} />
+        <span style={{ fontSize: 13, color: "var(--ink-soft)", flex: 1, minWidth: 0 }}>{titulo}</span>
+        <span
+          style={{
+            fontFamily: "var(--display)",
+            fontSize: 22,
+            fontWeight: 700,
+            lineHeight: 1,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {valor}
+        </span>
       </div>
-      <div>
-        <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 3 }}>Orçamentos perdidos</div>
-        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--locked)" }}>{fmtValor(perdido)}</div>
+      <PainelBarra pct={pct} cor={cor} />
+    </div>
+  );
+}
+
+/* Quadro pequeno: ícone em cima, título e valor embaixo. */
+function PainelMiniCard({ Icon, titulo, valor, detalhe }) {
+  return (
+    <div style={{ ...cardStyle, padding: "14px 14px 13px", minWidth: 0 }}>
+      <Icon size={18} color="var(--accent)" style={{ marginBottom: 12 }} />
+      <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 2 }}>{titulo}</div>
+      <div
+        style={{
+          fontFamily: "var(--display)",
+          fontSize: 24,
+          fontWeight: 700,
+          lineHeight: 1.1,
+          fontVariantNumeric: "tabular-nums",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {valor}
       </div>
+      {detalhe && <div style={{ fontSize: 12, color: "var(--success)", marginTop: 1 }}>{detalhe}</div>}
     </div>
   );
 }
