@@ -1461,7 +1461,7 @@ function formatTelefone(raw) {
    --accent-ink no CSS. As cores de status (venda feita, instalado etc.)
    são independentes e fixas: o significado das etiquetas nunca muda. */
 const COR_MARCA = "#D8955F";
-const COR_BRASS = "#F0C48E";
+const COR_GLOW = "#5CC8FF";
 function hexParaRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
   if (!m) return null;
@@ -1965,6 +1965,7 @@ export default function App() {
       onLogout={handleLogout}
       busca={busca}
       onBuscaChange={handleBuscaChange}
+      rota={route.screen}
       userMenu={
         showUserMenu && (
           <UserMenuOverlay
@@ -2101,10 +2102,11 @@ function Shell({
   busca,
   onBuscaChange,
   userMenu,
+  rota,
 }) {
   const [railOpen, setRailOpen] = useState(false);
   const corAccent = COR_MARCA;
-  const corAccentSoft = "#46291A";
+  const corAccentSoft = "rgba(216,149,95,0.16)";
   const corAccentInk = "#2B140A";
 
   return (
@@ -2113,18 +2115,18 @@ function Shell({
         ${FONT_IMPORT}
         :root {
           color-scheme: dark;
-          --bg: #1A0F0B;
-          --surface: #2A1912;
-          --field: #1E120D;
-          --ink: #F4E7DC;
-          --ink-soft: #B79F90;
-          --line: rgba(226,176,140,0.18);
-          --info: #7FB0E0;
+          --bg: #070B14;
+          --surface: #101A2C;
+          --field: #0A1220;
+          --ink: #E8EEF8;
+          --ink-soft: #8F9DB6;
+          --line: rgba(130,175,255,0.17);
+          --info: #6FB6FF;
           --display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
           --accent: ${corAccent};
           --accent-ink: ${corAccentInk};
           --accent-soft: ${corAccentSoft};
-          --brass: ${COR_BRASS};
+          --glow: ${COR_GLOW};
           --locked: #EE8A78;
           --locked-soft: rgba(238,138,120,0.16);
           --success: #7CC79A;
@@ -2139,7 +2141,7 @@ function Shell({
           --rose-soft: rgba(234,143,166,0.16);
           --mono: 'IBM Plex Mono', ui-monospace, monospace;
           --sans: 'Barlow', system-ui, sans-serif;
-          --shadow-sm: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,222,196,0.06);
+          --shadow-sm: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(170,205,255,0.07);
           --shadow-md: 0 14px 36px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4);
         }
         * { box-sizing: border-box; }
@@ -2148,12 +2150,15 @@ function Shell({
           overflow: hidden;
           background-color: var(--bg);
           background-image:
-            radial-gradient(900px 520px at 88% -8%, rgba(176,104,64,0.38), transparent 62%),
-            radial-gradient(760px 480px at -8% 108%, rgba(124,66,38,0.34), transparent 60%),
-            linear-gradient(180deg, #221410 0%, #170C08 100%);
+            linear-gradient(rgba(130,175,255,0.045) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(130,175,255,0.045) 1px, transparent 1px),
+            radial-gradient(900px 560px at 90% -10%, rgba(40,120,230,0.32), transparent 62%),
+            radial-gradient(780px 520px at -10% 110%, rgba(110,70,220,0.24), transparent 60%),
+            linear-gradient(180deg, #0B1222 0%, #060A12 100%);
+          background-size: 44px 44px, 44px 44px, auto, auto, auto;
           background-attachment: fixed;
         }
-        ::selection { background: rgba(216,149,95,0.4); }
+        ::selection { background: rgba(92,200,255,0.35); }
         h1 { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
         button { font-family: inherit; cursor: pointer; transition: filter 0.12s ease, box-shadow 0.12s ease, transform 0.05s ease, background-color 0.12s ease; }
         button:not(:disabled):hover { filter: brightness(0.96); }
@@ -2210,7 +2215,7 @@ function Shell({
           right: 0;
           bottom: 0;
           height: 2px;
-          background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 70%, var(--brass) 100%);
+          background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 55%, var(--glow) 100%);
         }
         .header-row {
           display: grid;
@@ -2226,7 +2231,21 @@ function Shell({
           -webkit-overflow-scrolling: touch;
           padding-bottom: env(safe-area-inset-bottom, 0px);
         }
-        .container { max-width: 640px; margin: 0 auto; padding: 0 14px 64px; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 0 clamp(14px, 3vw, 32px) 64px; }
+        .lista-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+        .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+        .painel-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+        .form-narrow { max-width: 560px; }
+        .tela-estreita { max-width: 880px; margin: 0 auto; }
+        @media (min-width: 1000px) {
+          .split { grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); gap: 28px; }
+          .painel-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+        }
+        .rail-item.active {
+          background: var(--accent-soft) !important;
+          color: var(--accent) !important;
+          box-shadow: inset 2px 0 0 var(--accent), 0 0 18px rgba(216,149,95,0.16);
+        }
         /* Modo largo (Funil): larga o teto de 640px e deixa só uns 24px de
            margem de cada lado em telas largas — em telas estreitas, max()
            garante que ainda cabe (vira 100% da tela). */
@@ -2266,6 +2285,7 @@ function Shell({
           onOpenPainel={onOpenPainel}
           onOpenUserMenu={onOpenUserMenu}
           onLogout={onLogout}
+          rota={rota}
         />
       )}
 
@@ -2273,7 +2293,7 @@ function Shell({
         <header
           className="app-header"
           style={{
-            background: "rgba(34,20,14,0.78)",
+            background: "rgba(9,14,26,0.72)",
             backdropFilter: "blur(14px)",
             WebkitBackdropFilter: "blur(14px)",
             boxShadow: "var(--shadow-sm)",
@@ -2458,7 +2478,7 @@ function HeaderSearch({ value, onChange }) {
    da própria barra) = ícone + nome (230px). Logout sempre fixo no rodapé,
    nos dois estados.
    ============================================================ */
-function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendario, onOpenKanban, onOpenPainel, onOpenUserMenu, onLogout }) {
+function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendario, onOpenKanban, onOpenPainel, onOpenUserMenu, onLogout, rota }) {
   const papel = session.papel;
   const ir = (fn) => {
     onCollapse();
@@ -2470,12 +2490,12 @@ function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendar
   // Calendário (último).
   const itens = [];
   if (canGerenciarUsuarios(papel)) {
-    itens.push({ Icon: LayoutGrid, label: "Painel", onClick: onOpenPainel });
+    itens.push({ Icon: LayoutGrid, label: "Painel", onClick: onOpenPainel, telas: ["painel"] });
   }
-  itens.push({ Icon: ClipboardList, label: "Pedidos", onClick: onGoHome });
+  itens.push({ Icon: ClipboardList, label: "Pedidos", onClick: onGoHome, telas: ["lista", "pedido", "ficha", "usuarios"] });
   if (canVerCalendario(papel)) {
-    itens.push({ Icon: BarChart3, label: "Funil", onClick: onOpenKanban, rotate: true });
-    itens.push({ Icon: CalendarDays, label: "Calendário", onClick: onOpenCalendario });
+    itens.push({ Icon: BarChart3, label: "Funil", onClick: onOpenKanban, rotate: true, telas: ["kanban"] });
+    itens.push({ Icon: CalendarDays, label: "Calendário", onClick: onOpenCalendario, telas: ["calendario"] });
   }
 
   return (
@@ -2487,8 +2507,14 @@ function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendar
         </button>
       </div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, padding: "0 8px", overflowY: "auto" }}>
-        {itens.map(({ Icon, label, onClick, rotate }) => (
-          <button key={label} onClick={() => ir(onClick)} title={label} style={railItemStyle(open)}>
+        {itens.map(({ Icon, label, onClick, rotate, telas }) => (
+          <button
+            key={label}
+            className={telas && telas.includes(rota) ? "rail-item active" : "rail-item"}
+            onClick={() => ir(onClick)}
+            title={label}
+            style={railItemStyle(open)}
+          >
             <Icon size={18} style={{ flexShrink: 0, transform: rotate ? "rotate(180deg)" : undefined }} />
             {open && <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>}
           </button>
@@ -2583,8 +2609,8 @@ function LoginScreen({ onLogin }) {
   };
 
   return (
-    <div style={{ padding: "40px 4px" }}>
-      <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 4 }}>Entrar no sistema</h1>
+    <div style={{ ...cardStyle, maxWidth: 420, margin: "8vh auto 0", padding: "32px 28px", boxShadow: "var(--shadow-md), 0 0 48px rgba(70,160,255,0.08)" }}>
+      <h1 style={{ fontSize: 28, lineHeight: 1.05, marginBottom: 6 }}>Entrar no sistema</h1>
       <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 24 }}>
         Use o usuário e senha cadastrados pelo seu gestor.
       </p>
@@ -2665,7 +2691,7 @@ function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios }) 
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,5,3,0.65)",
+        background: "rgba(3,6,14,0.72)",
         zIndex: 150,
         display: "flex",
         alignItems: "flex-end",
@@ -2791,7 +2817,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 30, lineHeight: 1.05, margin: 0 }}>Painel de vendas</h1>
+          <h1 style={{ fontSize: 34, lineHeight: 1.05, margin: 0 }}>Painel de vendas</h1>
           <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #E8A870, #B96C3F)", margin: "8px 0 6px" }} />
           <div style={{ fontSize: 13, color: "var(--ink-soft)", textTransform: "capitalize" }}>{mesLabel}</div>
         </div>
@@ -2805,6 +2831,8 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
         <div style={{ padding: "32px 0", textAlign: "center", color: "var(--ink-soft)" }}>Calculando…</div>
       ) : (
         <>
+          <div className="painel-grid">
+          <div>
           {/* Quadro principal: número grande do mês + as duas barras de fechamento */}
           <div style={painelHeroStyle}>
             <div style={painelEyebrowStyle}>Resumo do mês</div>
@@ -2867,6 +2895,8 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
               detalhe={lider ? fmtValor(lider.vendas) : undefined}
             />
             <PainelMiniCard Icon={BarChart3} titulo="Média por vendedor" valor={fmtValor(mediaPorVendedor)} />
+          </div>
+
           </div>
 
           {/* Ranking de cada vendedor */}
@@ -2940,6 +2970,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
               ))
             )}
           </div>
+          </div>
         </>
       )}
     </div>
@@ -2977,17 +3008,17 @@ const painelHeroStyle = {
   overflow: "hidden",
   borderRadius: 18,
   padding: "18px 16px",
-  border: "1px solid rgba(216,149,95,0.34)",
+  border: "1px solid rgba(120,190,255,0.30)",
   background:
-    "radial-gradient(520px 260px at 100% 0%, rgba(216,149,95,0.22), transparent 65%), linear-gradient(160deg, #3A2219 0%, #25150F 100%)",
-  boxShadow: "var(--shadow-md), 0 0 40px rgba(216,149,95,0.07)",
+    "radial-gradient(560px 280px at 100% 0%, rgba(70,160,255,0.22), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(216,149,95,0.13), transparent 65%), linear-gradient(160deg, #15233C 0%, #0D1627 100%)",
+  boxShadow: "var(--shadow-md), 0 0 48px rgba(70,160,255,0.09)",
 };
 
 /* Barra de progresso (0–100). */
 function PainelBarra({ pct, cor }) {
   const largura = Math.max(0, Math.min(100, pct || 0));
   return (
-    <div style={{ height: 8, borderRadius: 999, background: "rgba(255,236,214,0.09)", overflow: "hidden" }}>
+    <div style={{ height: 8, borderRadius: 999, background: "rgba(160,200,255,0.10)", overflow: "hidden" }}>
       <div
         style={{
           width: `${largura}%`,
@@ -3009,7 +3040,7 @@ function PainelBarraCard({ Icon, titulo, valor, pct, cor }) {
         borderRadius: 14,
         padding: "13px 14px",
         border: "1px solid var(--line)",
-        background: "rgba(20,10,6,0.35)",
+        background: "rgba(5,10,20,0.45)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, minWidth: 0 }}>
@@ -3077,7 +3108,7 @@ function UsuariosScreen({ session, usuarios, onBack, onUsuariosChange }) {
       </button>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 600 }}>Usuários</h1>
+        <h1 style={{ fontSize: 30, lineHeight: 1.05 }}>Usuários</h1>
         {!showForm && (
           <button onClick={abrirNovo} style={ghostBtnStyle}>
             <Plus size={15} /> Novo usuário
@@ -3086,19 +3117,21 @@ function UsuariosScreen({ session, usuarios, onBack, onUsuariosChange }) {
       </div>
 
       {showForm && (
-        <UsuarioForm
-          session={session}
-          editing={editing}
-          onCancel={() => setShowForm(false)}
-          onSaved={async () => {
-            setShowForm(false);
-            setEditing(null);
-            await onUsuariosChange();
-          }}
-        />
+        <div className="form-narrow">
+          <UsuarioForm
+            session={session}
+            editing={editing}
+            onCancel={() => setShowForm(false)}
+            onSaved={async () => {
+              setShowForm(false);
+              setEditing(null);
+              await onUsuariosChange();
+            }}
+          />
+        </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="lista-grid">
         {usuarios.map((u) => {
           const podeEditar =
             canGerenciarUsuarios(session.papel) &&
@@ -3297,7 +3330,7 @@ function CalendarScreen({ eventos, index, busca, papel, nome, onCriarEvento, onE
       <button onClick={onBack} style={{ ...ghostBtnStyle, marginBottom: 14 }}>
         <ArrowLeft size={14} /> Voltar
       </button>
-      <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 14 }}>Calendário</h1>
+      <h1 style={{ fontSize: 30, lineHeight: 1.05, marginBottom: 14 }}>Calendário</h1>
       {buscaNorm && (
         <div style={{ ...missingTextStyle, color: "var(--ink-soft)", marginBottom: 10, marginTop: -6 }}>
           Mostrando só agendamentos de clientes com "{busca}" no nome.
@@ -3457,7 +3490,7 @@ function KanbanScreen({ index, busca, papel, nome, onBack, onAbrirPedido, onVolt
       <button onClick={onBack} style={{ ...ghostBtnStyle, marginBottom: 14, flexShrink: 0, alignSelf: "flex-start" }}>
         <ArrowLeft size={14} /> Voltar
       </button>
-      <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: buscaNorm ? 4 : 14, flexShrink: 0 }}>Funil</h1>
+      <h1 style={{ fontSize: 30, lineHeight: 1.05, marginBottom: buscaNorm ? 4 : 14, flexShrink: 0 }}>Funil</h1>
       {buscaNorm && (
         <div style={{ ...missingTextStyle, color: "var(--ink-soft)", marginBottom: 10, flexShrink: 0 }}>
           Mostrando só clientes com "{busca}" no nome.
@@ -3846,7 +3879,7 @@ function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated })
   return (
     <div style={{ paddingTop: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 600 }}>Pedidos</h1>
+        <h1 style={{ fontSize: 30, lineHeight: 1.05 }}>Pedidos</h1>
         {canEditStructure(papel) && (
           <button onClick={() => setShowForm(true)} style={ghostBtnStyle}>
             <Plus size={15} /> Novo pedido
@@ -3855,16 +3888,18 @@ function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated })
       </div>
 
       {showForm && (
-        <NovoPedidoForm
-          papel={papel}
-          nome={nome}
-          usuarios={usuarios}
-          onCancel={() => setShowForm(false)}
-          onCreated={(id) => {
-            setShowForm(false);
-            onCreated(id);
-          }}
-        />
+        <div className="form-narrow">
+          <NovoPedidoForm
+            papel={papel}
+            nome={nome}
+            usuarios={usuarios}
+            onCancel={() => setShowForm(false)}
+            onCreated={(id) => {
+              setShowForm(false);
+              onCreated(id);
+            }}
+          />
+        </div>
       )}
 
       {sorted.length === 0 && !showForm && (
@@ -3880,17 +3915,16 @@ function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated })
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="lista-grid">
         {sorted.map((p) => (
           <button
             key={p.id}
             onClick={() => onOpen(p.id)}
             style={{
+              ...cardStyle,
               textAlign: "left",
-              background: "var(--surface)",
-              border: "1px solid var(--line)",
-              borderRadius: 8,
-              padding: "12px 14px",
+              color: "var(--ink)",
+              padding: "14px 16px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -4244,10 +4278,11 @@ function PedidoDetail({
   const eventosOrdenados = eventos.slice().sort((a, b) => (a.data + (a.hora || "")).localeCompare(b.data + (b.hora || "")));
 
   return (
-    <div style={{ paddingTop: 18 }}>
+    <div className="split" style={{ paddingTop: 18 }}>
+     <div style={{ minWidth: 0 }}>
       <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-soft)" }}>{pedidoLabel(pedido.numero)}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, marginBottom: 8 }}>
-        <h1 style={{ fontSize: 19, fontWeight: 600, flex: 1, minWidth: 0 }}>{pedido.cliente}</h1>
+        <h1 style={{ fontSize: 28, lineHeight: 1.05, flex: 1, minWidth: 0 }}>{pedido.cliente}</h1>
         {canEditClienteInfo(papel) && !editandoInfo && (
           <button
             onClick={() => setEditandoInfo(true)}
@@ -4425,6 +4460,8 @@ function PedidoDetail({
         </div>
       )}
 
+     </div>
+     <div style={{ minWidth: 0 }}>
       {ambientesVisiveis.length === 0 && (
         <div style={emptyStateStyle}>
           {papel === "Instalador"
@@ -4462,6 +4499,7 @@ function PedidoDetail({
           )}
         </div>
       )}
+     </div>
     </div>
   );
 }
@@ -4936,7 +4974,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", onConfirm, 
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(10,5,3,0.65)",
+        background: "rgba(3,6,14,0.72)",
         zIndex: 60,
         display: "flex",
         alignItems: "center",
@@ -6611,7 +6649,7 @@ function FichaPeca({ pedido, ambienteId, pecaId, papel, nome, onChange, onBack }
   };
 
   return (
-    <div style={{ paddingTop: 18 }}>
+    <div className="tela-estreita" style={{ paddingTop: 18 }}>
       {confirmandoExclusao && (
         <ConfirmDialog
           title={`Excluir ${peca.tipo.toLowerCase()} ${peca.codigo}?`}
@@ -6951,7 +6989,9 @@ function FichaMedidaField({ label, raw, setRaw, onBlur, error, optional }) {
    ============================================================ */
 const labelStyle = { display: "block", fontSize: 11.5, color: "var(--ink-soft)", marginBottom: 4 };
 const cardStyle = {
-  background: "linear-gradient(160deg, #37211A 0%, #271811 100%)",
+  background: "linear-gradient(160deg, rgba(26,40,66,0.82) 0%, rgba(14,22,38,0.88) 100%)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
   border: "1px solid var(--line)",
   borderRadius: 14,
   padding: 14,
@@ -7014,7 +7054,7 @@ function primaryBtnStyle(disabled) {
   return {
     width: "100%",
     marginTop: 16,
-    background: disabled ? "#4A372D" : "linear-gradient(135deg, #E8A870 0%, #B96C3F 100%)",
+    background: disabled ? "#27324A" : "linear-gradient(135deg, #E8A870 0%, #B96C3F 100%)",
     color: disabled ? "var(--ink-soft)" : "var(--accent-ink)",
     border: "none",
     borderRadius: 10,
@@ -7026,7 +7066,7 @@ function primaryBtnStyle(disabled) {
     justifyContent: "center",
     gap: 6,
     cursor: disabled ? "not-allowed" : "pointer",
-    boxShadow: disabled ? "none" : "var(--shadow-sm)",
+    boxShadow: disabled ? "none" : "var(--shadow-sm), 0 0 22px rgba(232,168,112,0.28)",
   };
 }
 function inputStyle() {
