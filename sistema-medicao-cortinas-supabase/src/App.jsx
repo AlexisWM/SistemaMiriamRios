@@ -54,7 +54,7 @@ import {
    TOKENS
    ============================================================ */
 const FONT_IMPORT =
-  "@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');";
+  "@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');";
 
 // Modelo da Cortina: 6 estruturas de mecanismo. "Trilho suíço" e "Tubo
 // Vaza" já têm regra de orçamento completa (mesmo motor de cálculo pros
@@ -1157,10 +1157,10 @@ function statusPedidoColor(status) {
       "Agendar Medição": "var(--amber)",
       "Medida Agendada": "var(--amber)",
       "Medida Feita": "var(--success)",
-      "Orçamento em Andamento": "#7C93C9",
-      "Orçamento Passado": "#6B3FA0",
+      "Orçamento em Andamento": "#8EA6DB",
+      "Orçamento Passado": "#B48CE6",
       "Venda Feita": "var(--rose)",
-      "Em produção": "var(--accent)",
+      "Em produção": "var(--info)",
       "Parcialmente Fabricado": "var(--orange)",
       "Disponível para instalar": "var(--success)",
       "Instalado": "var(--teal)",
@@ -1458,8 +1458,8 @@ function formatTelefone(raw) {
    Identidade visual única e fixa do sistema — veja --accent/--accent-soft/
    --accent-ink no CSS. As cores de status (venda feita, instalado etc.)
    são independentes e fixas: o significado das etiquetas nunca muda. */
-const COR_MARCA = "#1F3A52";
-const COR_BRASS = "#B98A3D";
+const COR_MARCA = "#D8955F";
+const COR_BRASS = "#F0C48E";
 function hexParaRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
   if (!m) return null;
@@ -2102,43 +2102,57 @@ function Shell({
 }) {
   const [railOpen, setRailOpen] = useState(false);
   const corAccent = COR_MARCA;
-  const corAccentSoft = clarearCor(corAccent, 0.86);
-  const corAccentInk = corDeTextoSobre(corAccent);
+  const corAccentSoft = "#46291A";
+  const corAccentInk = "#2B140A";
 
   return (
-    <div className="app-shell" style={{ fontFamily: "var(--sans)", background: "var(--bg)", color: "var(--ink)" }}>
+    <div className="app-shell" style={{ fontFamily: "var(--sans)", color: "var(--ink)" }}>
       <style>{`
         ${FONT_IMPORT}
         :root {
-          --bg: #F1ECE0;
-          --surface: #FFFFFF;
-          --ink: #211D1A;
-          --ink-soft: #6E6558;
-          --line: #E1D7C4;
+          color-scheme: dark;
+          --bg: #1A0F0B;
+          --surface: #2A1912;
+          --field: #1E120D;
+          --ink: #F4E7DC;
+          --ink-soft: #B79F90;
+          --line: rgba(226,176,140,0.18);
+          --info: #7FB0E0;
+          --display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
           --accent: ${corAccent};
           --accent-ink: ${corAccentInk};
           --accent-soft: ${corAccentSoft};
           --brass: ${COR_BRASS};
-          --locked: #97372A;
-          --locked-soft: #F3E3DF;
-          --success: #3E6B50;
-          --success-soft: #E4EDE6;
-          --amber: #B8860B;
-          --amber-soft: #F5ECD6;
-          --orange: #C1631A;
-          --orange-soft: #F3E1CF;
-          --teal: #1B6E76;
-          --teal-soft: #DCEBEC;
-          --rose: #A34D61;
-          --rose-soft: #F1DDE2;
+          --locked: #EE8A78;
+          --locked-soft: rgba(238,138,120,0.16);
+          --success: #7CC79A;
+          --success-soft: rgba(124,199,154,0.15);
+          --amber: #E8BC55;
+          --amber-soft: rgba(232,188,85,0.16);
+          --orange: #F59A55;
+          --orange-soft: rgba(245,154,85,0.16);
+          --teal: #6CC4CC;
+          --teal-soft: rgba(108,196,204,0.15);
+          --rose: #EA8FA6;
+          --rose-soft: rgba(234,143,166,0.16);
           --mono: 'IBM Plex Mono', ui-monospace, monospace;
-          --sans: 'IBM Plex Sans', system-ui, sans-serif;
-          --shadow-sm: 0 1px 2px rgba(33,29,26,0.07), 0 1px 1px rgba(33,29,26,0.05);
-          --shadow-md: 0 8px 24px rgba(33,29,26,0.12), 0 2px 6px rgba(33,29,26,0.08);
+          --sans: 'Barlow', system-ui, sans-serif;
+          --shadow-sm: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,222,196,0.06);
+          --shadow-md: 0 14px 36px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4);
         }
         * { box-sizing: border-box; }
         html, body, #root { height: 100%; margin: 0; }
-        body { overflow: hidden; background: var(--bg); }
+        body {
+          overflow: hidden;
+          background-color: var(--bg);
+          background-image:
+            radial-gradient(900px 520px at 88% -8%, rgba(176,104,64,0.38), transparent 62%),
+            radial-gradient(760px 480px at -8% 108%, rgba(124,66,38,0.34), transparent 60%),
+            linear-gradient(180deg, #221410 0%, #170C08 100%);
+          background-attachment: fixed;
+        }
+        ::selection { background: rgba(216,149,95,0.4); }
+        h1 { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
         button { font-family: inherit; cursor: pointer; transition: filter 0.12s ease, box-shadow 0.12s ease, transform 0.05s ease, background-color 0.12s ease; }
         button:not(:disabled):hover { filter: brightness(0.96); }
         button:not(:disabled):active { transform: translateY(1px); }
@@ -2254,7 +2268,15 @@ function Shell({
       )}
 
       <div className="app-main">
-        <header className="app-header" style={{ background: "var(--surface)", boxShadow: "var(--shadow-sm)" }}>
+        <header
+          className="app-header"
+          style={{
+            background: "rgba(34,20,14,0.78)",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
           <div className="header-row">
             {session && (
               <button
@@ -2292,8 +2314,9 @@ function Shell({
                     width: 28,
                     height: 28,
                     borderRadius: 8,
-                    background: "var(--accent)",
-                    color: "var(--brass)",
+                    background: "linear-gradient(135deg, #E8A870 0%, #B96C3F 100%)",
+                    color: "#2B140A",
+                    boxShadow: "inset 0 1px 0 rgba(255,236,214,0.5)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -2308,9 +2331,12 @@ function Shell({
               <div style={{ minWidth: 0 }}>
                 <div
                   style={{
-                    fontSize: 15,
-                    fontWeight: 600,
-                    letterSpacing: "0.2px",
+                    fontFamily: "var(--display)",
+                    fontSize: 19,
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    lineHeight: 1.1,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -2511,11 +2537,11 @@ function railItemStyle(open) {
 
 function RoleDot({ papel }) {
   const colors = {
-    "Vendedor": "#28466A",
-    "Gestor": "#97372A",
-    "Gestor Master": "#6B3FA0",
-    "Fábrica": "#3E6B50",
-    "Instalador": "#B8860B",
+    "Vendedor": "#7FB0E0",
+    "Gestor": "#EE8A78",
+    "Gestor Master": "#B48CE6",
+    "Fábrica": "#7CC79A",
+    "Instalador": "#E8BC55",
   };
   return (
     <span
@@ -2637,7 +2663,7 @@ function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios }) 
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(20,20,18,0.4)",
+        background: "rgba(10,5,3,0.65)",
         zIndex: 150,
         display: "flex",
         alignItems: "flex-end",
@@ -3168,7 +3194,7 @@ function CalendarScreen({ eventos, index, busca, papel, nome, onCriarEvento, onE
                 >
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={statusBadgeStyle(e.tipo === "Medida" ? "var(--accent)" : "var(--success)")}>{e.tipo}</span>
+                      <span style={statusBadgeStyle(e.tipo === "Medida" ? "var(--info)" : "var(--success)")}>{e.tipo}</span>
                       {e.hora && <span style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{e.hora}</span>}
                     </div>
                     <button
@@ -4117,7 +4143,7 @@ function PedidoDetail({
               {eventosOrdenados.map((e) => (
                 <div key={e.id} style={{ ...cardStyle, padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={statusBadgeStyle(e.tipo === "Medida" ? "var(--accent)" : "var(--success)")}>{e.tipo}</span>
+                    <span style={statusBadgeStyle(e.tipo === "Medida" ? "var(--info)" : "var(--success)")}>{e.tipo}</span>
                     <span style={{ fontSize: 12.5 }}>
                       {new Date(e.data + "T00:00:00").toLocaleDateString("pt-BR")}
                       {e.hora ? ` às ${e.hora}` : ""}
@@ -4695,7 +4721,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", onConfirm, 
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(20,20,18,0.45)",
+        background: "rgba(10,5,3,0.65)",
         zIndex: 60,
         display: "flex",
         alignItems: "center",
@@ -4706,7 +4732,15 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", onConfirm, 
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ background: "var(--surface)", borderRadius: 10, padding: 20, maxWidth: 360, width: "100%" }}
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--line)",
+          borderRadius: 14,
+          padding: 20,
+          maxWidth: 360,
+          width: "100%",
+          boxShadow: "var(--shadow-md)",
+        }}
       >
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{title}</div>
         <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 18, lineHeight: 1.5 }}>{message}</div>
@@ -4719,7 +4753,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", onConfirm, 
             style={{
               flex: 1,
               background: "var(--locked)",
-              color: "#fff",
+              color: "#2A0E08",
               border: "none",
               borderRadius: 6,
               padding: "11px 14px",
@@ -4851,7 +4885,7 @@ function ProducaoControls({ peca, papel, nome, onUpdate }) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
         {confirmDialog}
-        <span style={statusBadgeStyle("var(--accent)")}>
+        <span style={statusBadgeStyle("var(--info)")}>
           <Factory size={10} /> Em produção
         </span>
         {canAvancarInstalar(papel) && (
@@ -6702,9 +6736,9 @@ function FichaMedidaField({ label, raw, setRaw, onBlur, error, optional }) {
    ============================================================ */
 const labelStyle = { display: "block", fontSize: 11.5, color: "var(--ink-soft)", marginBottom: 4 };
 const cardStyle = {
-  background: "var(--surface)",
+  background: "linear-gradient(160deg, #37211A 0%, #271811 100%)",
   border: "1px solid var(--line)",
-  borderRadius: 10,
+  borderRadius: 14,
   padding: 14,
   boxShadow: "var(--shadow-sm)",
 };
@@ -6765,10 +6799,10 @@ function primaryBtnStyle(disabled) {
   return {
     width: "100%",
     marginTop: 16,
-    background: disabled ? "#B9BBB1" : "var(--accent)",
-    color: "var(--accent-ink)",
+    background: disabled ? "#4A372D" : "linear-gradient(135deg, #E8A870 0%, #B96C3F 100%)",
+    color: disabled ? "var(--ink-soft)" : "var(--accent-ink)",
     border: "none",
-    borderRadius: 8,
+    borderRadius: 10,
     padding: "11px 14px",
     fontSize: 13.5,
     fontWeight: 600,
@@ -6784,10 +6818,10 @@ function inputStyle() {
   return {
     width: "100%",
     border: "1px solid var(--line)",
-    borderRadius: 8,
+    borderRadius: 10,
     padding: "9px 10px",
     fontSize: 13.5,
-    background: "var(--surface)",
+    background: "var(--field)",
     color: "var(--ink)",
   };
 }
