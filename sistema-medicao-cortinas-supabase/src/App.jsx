@@ -2135,10 +2135,12 @@ function Shell({
           color-scheme: dark;
           --bg: #070B14;
           --surface: #101A2C;
-          --field: #0A1220;
-          --ink: #E8EEF8;
-          --ink-soft: #8F9DB6;
-          --line: rgba(130,175,255,0.17);
+          --field: #182842;
+          --surface-hi: #1D2F50;
+          --ink: #F1F5FC;
+          --ink-soft: #B0BDD4;
+          --line: rgba(150,190,255,0.26);
+          --line-strong: rgba(165,205,255,0.55);
           --info: #6FB6FF;
           --display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
           --accent: ${corAccent};
@@ -2277,6 +2279,13 @@ function Shell({
            ocupa a largura toda (com a margem normal do conteúdo). */
         .rail-user-mobile,
         .header-hamburger-mobile { display: none !important; }
+        /* Campos: placeholder legível e foco bem visível. */
+        input::placeholder, textarea::placeholder { color: #8FA2C2; opacity: 1; }
+        input:focus, select:focus, textarea:focus {
+          outline: none;
+          border-color: var(--glow) !important;
+          box-shadow: 0 0 0 3px rgba(92,200,255,0.2);
+        }
         .mobile-tabs { display: none; }
         .mobile-tab {
           display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
@@ -2494,7 +2503,7 @@ function HeaderSearch({ value, onChange }) {
     <div style={{ position: "relative", width: "100%" }}>
       <Search
         size={14}
-        color="var(--ink-soft)"
+        color="var(--ink)"
         style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
       />
       <input
@@ -3723,7 +3732,7 @@ function KanbanBoard({ index, busca, papel, nome, onAbrirPedido, onVoltarEtapa }
                           padding: mostrarVoltar ? "8px 26px 8px 10px" : "8px 10px",
                         }}
                       >
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--ink-soft)" }}>
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-soft)" }}>
                           {pedidoLabel(p.numero)}
                         </div>
                         <div style={{ fontSize: 12.5, marginTop: 3 }}>
@@ -4748,7 +4757,7 @@ function NovoAmbienteInline({ onCancel, onCreate }) {
 function AmbienteAccordion({ ambiente, open, onToggle, papel, nome, onAddPeca, onUpdatePeca, onDeletePeca, onOpenPeca }) {
   const count = ambiente.pecas.length;
   return (
-    <div style={{ border: "1px solid var(--line)", borderRadius: 8, background: "var(--surface)", overflow: "hidden" }}>
+    <div style={{ border: "1px solid var(--line-strong)", borderRadius: 10, background: "var(--surface-hi)", overflow: "hidden" }}>
       <button
         onClick={onToggle}
         style={{
@@ -4919,10 +4928,10 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
   return (
     <div
       style={{
-        border: "1px solid var(--line)",
-        borderRadius: 6,
-        padding: "8px 10px",
-        background: peca.locked ? "var(--bg)" : "var(--surface)",
+        border: "1px solid var(--line-strong)",
+        borderRadius: 10,
+        padding: "10px 12px",
+        background: peca.locked ? "var(--bg)" : "var(--surface-hi)",
       }}
     >
       {confirmando && (
@@ -4949,15 +4958,19 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
             fontFamily: "var(--mono)",
             fontSize: 13,
             fontWeight: 600,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
             background: "var(--accent-soft)",
             color: "var(--accent)",
-            border: "none",
-            borderRadius: 4,
-            padding: "3px 8px",
+            border: "1px solid var(--accent)",
+            borderRadius: 8,
+            padding: "5px 8px 5px 10px",
           }}
           title="Abrir ficha da peça"
         >
           {peca.codigo}
+          <ChevronRight size={15} />
         </button>
         <span style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{peca.tipo}</span>
         <span style={{ flex: 1 }} />
@@ -6851,7 +6864,7 @@ function MedidaField({ label, raw, setRaw, disabled, error, onBlur, optional }) 
 
   return (
     <label style={{ display: "block" }}>
-      <span style={{ fontSize: 10, color: "var(--ink-soft)", display: "block", marginBottom: 2 }}>
+      <span style={{ fontSize: 11.5, color: "var(--ink-soft)", display: "block", marginBottom: 3 }}>
         {label}
         {optional ? "" : " *"}
       </span>
@@ -6869,9 +6882,9 @@ function MedidaField({ label, raw, setRaw, disabled, error, onBlur, optional }) 
           fontSize: 13,
           padding: "6px 6px",
           textAlign: "right",
-          borderColor: error ? "var(--locked)" : "var(--line)",
+          borderColor: error ? "var(--locked)" : "var(--line-strong)",
           opacity: disabled ? 0.75 : 1,
-          background: disabled ? "var(--bg)" : "var(--surface)",
+          background: disabled ? "var(--bg)" : "var(--field)",
         }}
       />
     </label>
@@ -7297,7 +7310,7 @@ function FichaMedidaField({ label, raw, setRaw, onBlur, error, optional }) {
           ...inputStyle(),
           fontFamily: "var(--mono)",
           textAlign: "right",
-          borderColor: error ? "var(--locked)" : "var(--line)",
+          borderColor: error ? "var(--locked)" : "var(--line-strong)",
         }}
       />
     </label>
@@ -7330,8 +7343,8 @@ const ghostBtnStyle = {
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
-  background: "var(--surface)",
-  border: "1px solid var(--line)",
+  background: "var(--surface-hi)",
+  border: "1px solid var(--line-strong)",
   borderRadius: 8,
   padding: "7px 12px",
   fontSize: 12.5,
@@ -7342,8 +7355,8 @@ const smallActionStyle = {
   display: "inline-flex",
   alignItems: "center",
   gap: 5,
-  background: "var(--surface)",
-  border: "1px solid var(--line)",
+  background: "var(--surface-hi)",
+  border: "1px solid var(--line-strong)",
   borderRadius: 7,
   padding: "5px 9px",
   fontSize: 11.5,
@@ -7392,7 +7405,7 @@ function primaryBtnStyle(disabled) {
 function inputStyle() {
   return {
     width: "100%",
-    border: "1px solid var(--line)",
+    border: "1px solid var(--line-strong)",
     borderRadius: 10,
     padding: "9px 10px",
     fontSize: 13.5,
