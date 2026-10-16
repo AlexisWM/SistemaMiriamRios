@@ -20,6 +20,10 @@ import {
   loadClientes,
   registrarCliente,
   salvarCliente,
+  juntarClientes,
+  atualizarMinhaFoto,
+  alterarMinhaSenha,
+  excluirUsuario,
 } from "./lib/db";
 import { supabase } from "./lib/supabaseClient";
 import {
@@ -69,6 +73,8 @@ import {
   TrendingUp,
   Sun,
   Moon,
+  Camera,
+  List as ListIcon,
 } from "lucide-react";
 
 /* ============================================================
@@ -1515,6 +1521,45 @@ function useTema() {
   }, [tema]);
   return [tema, setTema];
 }
+/* Foto de rosto em círculo. Sem foto: iniciais do nome. */
+function Avatar({ nome, foto, size = 28 }) {
+  const iniciais = String(nome || "?")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((t) => t[0])
+    .join("")
+    .toUpperCase();
+  const base = { width: size, height: size, borderRadius: 999, flexShrink: 0, border: "1.5px solid var(--line-strong)", boxShadow: "var(--shadow-sm)" };
+  if (foto) return <img src={foto} alt={nome} style={{ ...base, objectFit: "cover", display: "block" }} />;
+  return (
+    <span style={{ ...base, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--surface-hi)", color: "var(--ink-soft)", fontSize: Math.max(10, size * 0.38), fontWeight: 700 }}>
+      {iniciais}
+    </span>
+  );
+}
+const fotoDoUsuario = (usuarios, nome) => (usuarios || []).find((u) => u.nome === nome)?.foto || null;
+/* Recorta o rosto no centro e reduz para 256x256 (JPEG) — fica leve para guardar no banco. */
+function redimensionarFoto(file, lado = 256) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const m = Math.min(img.width, img.height);
+      const c = document.createElement("canvas");
+      c.width = lado;
+      c.height = lado;
+      c.getContext("2d").drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, lado, lado);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Não foi possível ler a imagem."));
+    };
+    img.src = url;
+  });
+}
 function canVerClientes(papel) {
   return papel === "Gestor" || papel === "Gestor Master";
 }
@@ -2038,6 +2083,11 @@ export default function App() {
             index={index}
             onClose={() => setShowUserMenu(false)}
             onLogout={handleLogout}
+            foto={fotoDoUsuario(usuarios, session.nome)}
+            onOpenPerfil={() => {
+              setShowUserMenu(false);
+              setRoute({ screen: "perfil" });
+            }}
             onOpenUsuarios={
               canGerenciarUsuarios(session.papel)
                 ? () => {
@@ -2130,6 +2180,7 @@ export default function App() {
 
       {route.screen === "kanban" && canVerCalendario(session.papel) && (
         <KanbanScreen
+          usuarios={usuarios}
           index={index}
           busca={busca}
           papel={session.papel}
@@ -2140,6 +2191,10 @@ export default function App() {
           }}
           onVoltarEtapa={voltarEtapaPedido}
         />
+      )}
+
+      {route.screen === "perfil" && (
+        <PerfilScreen session={session} usuarios={usuarios} onBack={() => setRoute({ screen: "lista" })} onUsuariosChange={refreshUsuarios} />
       )}
 
       {route.screen === "clientes" && canVerClientes(session.papel) && (
@@ -2225,6 +2280,7 @@ function Shell({
           --panel-bg: rgba(5,10,20,0.45);
           --placeholder: #8FA2C2;
           --row-hover: rgba(120,170,255,0.10);
+          --hero-border: rgba(120,190,255,0.30);
         }
         /* TEMA CLARO — ativado pelo botão sol/lua no cabeçalho. */
         :root[data-tema="claro"] {
@@ -2262,6 +2318,7 @@ function Shell({
           --panel-bg: rgba(30,55,100,0.05);
           --placeholder: #6A7B99;
           --row-hover: rgba(31,111,209,0.08);
+          --hero-border: rgba(30,80,160,0.28);
         }
         :root[data-tema="claro"] body {
           background-image:
@@ -2899,7 +2956,7 @@ function LoginScreen({ onLogin }) {
 /* ============================================================
    MENU DE USUÁRIO (sessão atual)
    ============================================================ */
-function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios }) {
+function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios, onOpenPerfil, foto }) {
   const [showInfo, setShowInfo] = useState(false);
   const [carregandoInfo, setCarregandoInfo] = useState(false);
   const [vendidoMes, setVendidoMes] = useState(null);
@@ -2941,7 +2998,7 @@ function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios }) 
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <RoleDot papel={session.papel} />
+            {foto ? <Avatar nome={session.nome} foto={foto} size={36} /> : <RoleDot papel={session.papel} />}
             <div>
               <div style={{ fontSize: 14.5, fontWeight: 600 }}>{session.nome}</div>
               <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{session.papel}</div>
@@ -2975,6 +3032,9 @@ function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios }) 
               )}
             </>
           )}
+          <button onClick={onOpenPerfil} style={{ ...ghostBtnStyle, justifyContent: "flex-start" }}>
+            <Camera size={15} /> Meu perfil (foto e senha)
+          </button>
           {onOpenUsuarios && (
             <button onClick={onOpenUsuarios} style={{ ...ghostBtnStyle, justifyContent: "flex-start" }}>
               <UsersIcon size={15} /> Gerenciar usuários
@@ -3164,6 +3224,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
                     >
                       {i + 1}
                     </span>
+                    <Avatar nome={usuario.nome} foto={usuario.foto} size={40} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                         <RoleDot papel={usuario.papel} />
@@ -3237,7 +3298,7 @@ const painelHeroStyle = {
   overflow: "hidden",
   borderRadius: 18,
   padding: "18px 16px",
-  border: "1px solid rgba(120,190,255,0.30)",
+  border: "1px solid var(--hero-border)",
   background:
     "var(--hero-bg)",
   boxShadow: "var(--shadow-md), 0 0 48px rgba(70,160,255,0.09)",
@@ -3320,6 +3381,27 @@ function PainelMiniCard({ Icon, titulo, valor, detalhe }) {
 function UsuariosScreen({ session, usuarios, onBack, onUsuariosChange }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [excluindo, setExcluindo] = useState(null); // usuário que está pra ser excluído
+  const [apagando, setApagando] = useState(false);
+  const [erroExcluir, setErroExcluir] = useState("");
+
+  const confirmarExcluir = async () => {
+    if (!excluindo) return;
+    setApagando(true);
+    setErroExcluir("");
+    try {
+      await excluirUsuario(excluindo.id);
+      setExcluindo(null);
+      await onUsuariosChange();
+    } catch (e) {
+      setErroExcluir(
+        /excluir_usuario|function|schema cache/i.test(e.message || "")
+          ? "A função de exclusão ainda não foi instalada no banco (rodar supabase/excluir_usuario.sql)."
+          : e.message || "Não foi possível excluir."
+      );
+    }
+    setApagando(false);
+  };
 
   const abrirNovo = () => {
     setEditing(null);
@@ -3360,6 +3442,19 @@ function UsuariosScreen({ session, usuarios, onBack, onUsuariosChange }) {
         </div>
       )}
 
+      {excluindo && (
+        <ConfirmDialog
+          title={`Excluir "${excluindo.nome}"?`}
+          message={`@${excluindo.login} será apagado de vez e não consegue mais entrar. Pedidos e vendas já feitos continuam no sistema. Não dá para desfazer.${erroExcluir ? "\n\n" + erroExcluir : ""}`}
+          confirmLabel={apagando ? "Excluindo…" : "Excluir usuário"}
+          onConfirm={confirmarExcluir}
+          onCancel={() => {
+            setExcluindo(null);
+            setErroExcluir("");
+          }}
+        />
+      )}
+
       <div className="lista-grid">
         {usuarios.map((u) => {
           const podeEditar =
@@ -3378,6 +3473,7 @@ function UsuariosScreen({ session, usuarios, onBack, onUsuariosChange }) {
             >
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Avatar nome={u.nome} foto={u.foto} size={26} />
                   <RoleDot papel={u.papel} />
                   <span style={{ fontSize: 13.5, fontWeight: 600 }}>{u.nome}</span>
                   {u.ativo === false && <span style={{ fontSize: 10.5, color: "var(--locked)" }}>(inativo)</span>}
@@ -3387,13 +3483,149 @@ function UsuariosScreen({ session, usuarios, onBack, onUsuariosChange }) {
                 </div>
               </div>
               {podeEditar && (
-                <button onClick={() => abrirEdicao(u)} style={smallActionStyle}>
-                  Editar
-                </button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => abrirEdicao(u)} style={smallActionStyle}>
+                    Editar
+                  </button>
+                  {u.id !== session.id && (
+                    <button onClick={() => setExcluindo(u)} title="Excluir usuário" aria-label="Excluir usuário" style={{ ...smallActionStyle, color: "var(--locked)" }}>
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   PERFIL — cada pessoa troca a própria foto de rosto e senha
+   ============================================================ */
+function PerfilScreen({ session, usuarios, onBack, onUsuariosChange }) {
+  const eu = usuarios.find((u) => u.id === session.id) || session;
+  const [foto, setFoto] = useState(eu.foto || null);
+  const [salvandoFoto, setSalvandoFoto] = useState(false);
+  const [msgFoto, setMsgFoto] = useState("");
+  const [senha, setSenha] = useState("");
+  const [senha2, setSenha2] = useState("");
+  const [mostrar, setMostrar] = useState(false);
+  const [salvandoSenha, setSalvandoSenha] = useState(false);
+  const [msgSenha, setMsgSenha] = useState({ tipo: "", texto: "" });
+
+  const escolherFoto = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setMsgFoto("");
+    setSalvandoFoto(true);
+    try {
+      const dataUrl = await redimensionarFoto(file);
+      const ok = await atualizarMinhaFoto(dataUrl);
+      if (!ok) throw new Error("Não foi possível salvar a foto.");
+      setFoto(dataUrl);
+      setMsgFoto("Foto salva.");
+      await onUsuariosChange();
+    } catch (err) {
+      setMsgFoto(err.message || "Não foi possível salvar a foto.");
+    }
+    setSalvandoFoto(false);
+  };
+  const removerFoto = async () => {
+    setSalvandoFoto(true);
+    const ok = await atualizarMinhaFoto("");
+    if (ok) {
+      setFoto(null);
+      setMsgFoto("Foto removida.");
+      await onUsuariosChange();
+    }
+    setSalvandoFoto(false);
+  };
+
+  const senhaOk = senha.length >= 6 && senha === senha2;
+  const trocarSenha = async () => {
+    if (!senhaOk || salvandoSenha) return;
+    setSalvandoSenha(true);
+    setMsgSenha({ tipo: "", texto: "" });
+    try {
+      await alterarMinhaSenha(senha);
+      setSenha("");
+      setSenha2("");
+      setMsgSenha({ tipo: "ok", texto: "Senha alterada. Use a nova senha no próximo login." });
+    } catch (err) {
+      setMsgSenha({ tipo: "erro", texto: err.message || "Não foi possível alterar a senha." });
+    }
+    setSalvandoSenha(false);
+  };
+
+  return (
+    <div style={{ paddingTop: 18 }}>
+      <button onClick={onBack} style={{ ...ghostBtnStyle, marginBottom: 14 }}>
+        <ArrowLeft size={14} /> Voltar
+      </button>
+      <h1 style={{ fontSize: 30, lineHeight: 1.05, marginBottom: 14 }}>Meu perfil</h1>
+
+      <div className="form-narrow" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={cardStyle}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <Avatar nome={session.nome} foto={foto} size={96} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>{session.nome}</div>
+              <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
+                @{session.login} · {session.papel}
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--ink-soft)", margin: "14px 0 10px", lineHeight: 1.4 }}>
+            Foto de rosto: aparece em círculo nos seus cartões do Funil e no Ranking do mês.
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <label style={{ ...ghostBtnStyle, cursor: "pointer" }}>
+              <Camera size={15} /> {salvandoFoto ? "Salvando…" : foto ? "Trocar foto" : "Escolher foto"}
+              <input type="file" accept="image/*" capture="user" onChange={escolherFoto} style={{ display: "none" }} disabled={salvandoFoto} />
+            </label>
+            {foto && (
+              <button onClick={removerFoto} disabled={salvandoFoto} style={ghostBtnStyle}>
+                <Trash2 size={14} /> Remover
+              </button>
+            )}
+          </div>
+          {msgFoto && <div style={{ ...missingTextStyle, color: "var(--ink-soft)" }}>{msgFoto}</div>}
+        </div>
+
+        <div style={cardStyle}>
+          <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 12 }}>Minha senha</div>
+          <label style={labelStyle}>Nova senha (mínimo 6 caracteres)</label>
+          <div style={{ position: "relative" }}>
+            <input
+              type={mostrar ? "text" : "password"}
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              style={{ ...inputStyle(), paddingRight: 40 }}
+              autoComplete="new-password"
+            />
+            <button
+              onClick={() => setMostrar((v) => !v)}
+              aria-label={mostrar ? "Ocultar senha" : "Mostrar senha"}
+              style={{ position: "absolute", right: 8, top: 8, background: "none", border: "none", padding: 4, color: "var(--ink-soft)" }}
+            >
+              {mostrar ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          <label style={{ ...labelStyle, marginTop: 10 }}>Repita a nova senha</label>
+          <input type={mostrar ? "text" : "password"} value={senha2} onChange={(e) => setSenha2(e.target.value)} style={inputStyle()} autoComplete="new-password" />
+          {senha2 && senha !== senha2 && <div style={{ ...missingTextStyle, color: "var(--locked)" }}>As senhas não são iguais.</div>}
+          {senha && senha.length < 6 && <div style={{ ...missingTextStyle, color: "var(--locked)" }}>Use pelo menos 6 caracteres.</div>}
+          {msgSenha.texto && (
+            <div style={{ ...missingTextStyle, color: msgSenha.tipo === "ok" ? "var(--success)" : "var(--locked)" }}>{msgSenha.texto}</div>
+          )}
+          <button onClick={trocarSenha} disabled={!senhaOk || salvandoSenha} style={{ ...ghostBtnStyle, marginTop: 14, opacity: senhaOk ? 1 : 0.5 }}>
+            <Check size={14} /> {salvandoSenha ? "Salvando…" : "Salvar nova senha"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -3566,7 +3798,15 @@ function CalendarScreen({ eventos, index, busca, papel, nome, onCriarEvento, onE
         </div>
       )}
 
-      <>
+      <style>{`
+        .cal-layout { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 28px; align-items: start; }
+        .cal-agenda { margin-top: 0; }
+        @media (max-width: 860px) {
+          .cal-layout { grid-template-columns: 1fr; gap: 18px; }
+        }
+      `}</style>
+      <div className="cal-layout">
+        <div style={{ ...cardStyle, padding: 14 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <button onClick={() => setMesRef(addMonths(mesRef, -1))} style={smallActionStyle}>
               <ChevronLeft size={14} />
@@ -3625,10 +3865,23 @@ function CalendarScreen({ eventos, index, busca, papel, nome, onCriarEvento, onE
               );
             })}
           </div>
+          <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 11.5, color: "var(--ink-soft)", flexWrap: "wrap" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--accent)" }} /> Medição
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--success)" }} /> Instalação
+            </span>
+            <button onClick={() => { setDiaSelecionado(hojeISO); setMesRef(new Date(hoje.getFullYear(), hoje.getMonth(), 1)); }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--accent)", fontSize: 11.5, textDecoration: "underline" }}>
+              Ir para hoje
+            </button>
+          </div>
+        </div>
 
-          <div style={{ marginTop: 18 }}>
+          <div className="cal-agenda">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, textTransform: "capitalize" }}>
+              <div style={{ fontSize: 15, fontWeight: 700, textTransform: "capitalize" }}>
+                {diaSelecionado === hojeISO ? "Hoje · " : ""}
                 {new Date(diaSelecionado + "T00:00:00").toLocaleDateString("pt-BR", {
                   weekday: "long",
                   day: "2-digit",
@@ -3704,7 +3957,7 @@ function CalendarScreen({ eventos, index, busca, papel, nome, onCriarEvento, onE
               ))}
             </div>
           </div>
-      </>
+      </div>
     </div>
   );
 }
@@ -3712,7 +3965,7 @@ function CalendarScreen({ eventos, index, busca, papel, nome, onCriarEvento, onE
 /* ============================================================
    FUNIL / KANBAN — tela própria, separada do calendário
    ============================================================ */
-function KanbanScreen({ index, busca, papel, nome, onBack, onAbrirPedido, onVoltarEtapa }) {
+function KanbanScreen({ usuarios, index, busca, papel, nome, onBack, onAbrirPedido, onVoltarEtapa }) {
   const buscaNorm = (busca || "").trim();
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", paddingTop: 18 }}>
@@ -3726,7 +3979,7 @@ function KanbanScreen({ index, busca, papel, nome, onBack, onAbrirPedido, onVolt
         </div>
       )}
       <div style={{ flex: 1, minHeight: 0 }}>
-        <KanbanBoard index={index} busca={busca} papel={papel} nome={nome} onAbrirPedido={onAbrirPedido} onVoltarEtapa={onVoltarEtapa} />
+        <KanbanBoard usuarios={usuarios} index={index} busca={busca} papel={papel} nome={nome} onAbrirPedido={onAbrirPedido} onVoltarEtapa={onVoltarEtapa} />
       </div>
     </div>
   );
@@ -3750,7 +4003,7 @@ function KanbanScreen({ index, busca, papel, nome, onBack, onAbrirPedido, onVolt
    Vendedor só enxerga os próprios cartões — cada um vê só o que é dele,
    Gestor e Gestor Master continuam vendo tudo.
    ============================================================ */
-function KanbanBoard({ index, busca, papel, nome, onAbrirPedido, onVoltarEtapa }) {
+function KanbanBoard({ usuarios, index, busca, papel, nome, onAbrirPedido, onVoltarEtapa }) {
   const [confirmando, setConfirmando] = useState(null); // pedido (do índice) que está pra voltar de etapa
   const [voltando, setVoltando] = useState(false);
 
@@ -3851,10 +4104,12 @@ function KanbanBoard({ index, busca, papel, nome, onAbrirPedido, onVoltarEtapa }
                       key={p.id}
                       style={{
                         position: "relative",
-                        background: "var(--surface)",
-                        border: "1px solid var(--line)",
+                        background: "var(--hero-bg)",
+                        border: "1px solid var(--hero-border)",
                         borderLeft: `3px solid ${cor}`,
-                        borderRadius: 6,
+                        borderRadius: 12,
+                        boxShadow: "var(--shadow-md), 0 0 24px rgba(70,160,255,0.08)",
+                        overflow: "hidden",
                         flexShrink: 0,
                       }}
                     >
@@ -3866,7 +4121,7 @@ function KanbanBoard({ index, busca, papel, nome, onAbrirPedido, onVoltarEtapa }
                           textAlign: "left",
                           background: "none",
                           border: "none",
-                          padding: mostrarVoltar ? "8px 26px 8px 10px" : "8px 10px",
+                          padding: mostrarVoltar ? "10px 26px 38px 12px" : "10px 12px 38px",
                         }}
                       >
                         <div style={{ fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-soft)" }}>
@@ -3887,6 +4142,9 @@ function KanbanBoard({ index, busca, papel, nome, onAbrirPedido, onVoltarEtapa }
                           </div>
                         )}
                       </button>
+                      <span style={{ position: "absolute", right: 8, bottom: 8 }} title={p.vendedor || ""}>
+                        <Avatar nome={p.vendedor} foto={fotoDoUsuario(usuarios, p.vendedor)} size={28} />
+                      </span>
                       {mostrarVoltar && (
                         <button
                           onClick={() => setConfirmando(p)}
@@ -4119,13 +4377,14 @@ function ClientesScreen({ usuarios, onBack }) {
     : clientes.filter(
         (c) =>
           semAcento(c.nome).includes(q) ||
+          semAcento(c.endereco).includes(q) ||
           (qDigitos.length > 0 && (c.cpf.includes(qDigitos) || c.telefone.replace(/\D/g, "").includes(qDigitos)))
       );
 
   return (
     <div style={{ paddingTop: 18 }}>
       <style>{`
-        .cli-grid { display: grid; grid-template-columns: 2fr 1.3fr 1.3fr 1.4fr; gap: 12px; align-items: center; }
+        .cli-grid { display: grid; grid-template-columns: 1.6fr 1.1fr 1.1fr 2fr 1.1fr; gap: 12px; align-items: center; }
         .cli-head { padding: 11px 18px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); background: var(--surface-hi); border-bottom: 1px solid var(--line-strong); }
         .cli-row { width: 100%; text-align: left; padding: 14px 18px; color: var(--ink); font-size: 14.5px; background: transparent; border: none; border-bottom: 1px solid var(--line); cursor: pointer; }
         .cli-row:last-child { border-bottom: none; }
@@ -4150,7 +4409,7 @@ function ClientesScreen({ usuarios, onBack }) {
         <input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por CPF, telefone ou nome"
+          placeholder="Buscar por CPF, telefone, nome ou endereço"
           style={{ ...inputStyle(), paddingLeft: 36 }}
         />
       </div>
@@ -4165,6 +4424,7 @@ function ClientesScreen({ usuarios, onBack }) {
             <span>Nome</span>
             <span>CPF</span>
             <span>Telefone</span>
+            <span>Endereço</span>
             <span>Vendedor responsável</span>
           </div>
           {filtrados.map((c) => (
@@ -4178,6 +4438,10 @@ function ClientesScreen({ usuarios, onBack }) {
                 <span className="cli-lbl">Tel.</span>
                 {formatTelefone(c.telefone) || "—"}
               </span>
+              <span style={{ fontSize: 13.5 }}>
+                <span className="cli-lbl">End.</span>
+                {c.endereco || "—"}
+              </span>
               <span style={{ color: "var(--ink-soft)", fontWeight: 500 }}>
                 <span className="cli-lbl">Vendedor</span>
                 {c.vendedor || "—"}
@@ -4190,6 +4454,7 @@ function ClientesScreen({ usuarios, onBack }) {
       {editando && (
         <ClienteSheet
           cliente={editando}
+          todos={clientes}
           usuarios={usuarios}
           onClose={() => setEditando(null)}
           onSaved={async () => {
@@ -4204,7 +4469,7 @@ function ClientesScreen({ usuarios, onBack }) {
 
 /* Pop-up do cliente: sobe do fundo da página, centralizado na horizontal,
    até quase o topo, com cantos arredondados (mesmo jeito do menu do usuário). */
-function ClienteSheet({ cliente, usuarios, onClose, onSaved }) {
+function ClienteSheet({ cliente, todos, usuarios, onClose, onSaved }) {
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "var(--overlay)", zIndex: 160, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
@@ -4240,14 +4505,14 @@ function ClienteSheet({ cliente, usuarios, onClose, onSaved }) {
           </button>
         </div>
         <div style={{ overflowY: "auto", padding: 20, flex: 1 }}>
-          <ClienteForm cliente={cliente} usuarios={usuarios} onCancel={onClose} onSaved={onSaved} />
+          <ClienteForm cliente={cliente} todos={todos} usuarios={usuarios} onCancel={onClose} onSaved={onSaved} />
         </div>
       </div>
     </div>
   );
 }
 
-function ClienteForm({ cliente, usuarios, onCancel, onSaved }) {
+function ClienteForm({ cliente, todos = [], usuarios, onCancel, onSaved }) {
   const [nome, setNome] = useState(cliente.nome || "");
   const [cpf, setCpf] = useState(formatCPF(cliente.cpf || ""));
   const [telefone, setTelefone] = useState(formatTelefone(cliente.telefone || ""));
@@ -4255,13 +4520,61 @@ function ClienteForm({ cliente, usuarios, onCancel, onSaved }) {
   const [vendedor, setVendedor] = useState(cliente.vendedor || "");
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState("");
+  const [paraJuntar, setParaJuntar] = useState(null); // cliente já existente com dado igual
   const vendedores = usuarios
     .filter((u) => ["Vendedor", "Gestor", "Gestor Master"].includes(u.papel) && u.ativo !== false)
     .sort((a, b) => a.nome.localeCompare(b.nome));
   const canSave = nome.trim().length > 0 && cpfValido(cpf);
 
+  // Procura outro cliente com o mesmo CPF ou telefone. Telefone repetido só
+  // conta se um dos dois não tem CPF ou se os CPFs são iguais — casal/sócios
+  // com CPFs diferentes dividem telefone sem serem a mesma pessoa.
+  const acharDuplicado = () => {
+    const d = (t) => String(t || "").replace(/\D/g, "");
+    const meuCpf = d(cpf);
+    const meuTel = d(telefone);
+    return (
+      todos.find((c) => {
+        if (c.id === cliente.id) return false;
+        if (meuCpf && c.cpf === meuCpf) return true;
+        if (meuTel.length >= 8 && d(c.telefone) === meuTel && (!meuCpf || !c.cpf || meuCpf === c.cpf)) return true;
+        return false;
+      }) || null
+    );
+  };
+
+  const juntar = async () => {
+    const outro = paraJuntar;
+    setParaJuntar(null);
+    setSaving(true);
+    setErro("");
+    // Edição: este cadastro fica e absorve o outro. Novo: o já existente fica e
+    // só recebe o que estava vazio. Nunca se perde dado: campos vazios são completados.
+    const base = cliente.id ? { nome, cpf, telefone, endereco, vendedor } : { nome: outro.nome, cpf: outro.cpf, telefone: outro.telefone, endereco: outro.endereco, vendedor: outro.vendedor };
+    const extra = cliente.id ? outro : { nome, cpf, telefone, endereco, vendedor };
+    const dados = {
+      nome: base.nome || extra.nome,
+      cpf: base.cpf || extra.cpf,
+      telefone: base.telefone || extra.telefone,
+      endereco: base.endereco || extra.endereco,
+      vendedor: base.vendedor || extra.vendedor,
+    };
+    const ok = await juntarClientes({ manterId: cliente.id || outro.id, removerId: cliente.id ? outro.id : null, dados });
+    setSaving(false);
+    if (!ok) {
+      setErro("Não foi possível juntar os clientes. Tente novamente.");
+      return;
+    }
+    onSaved();
+  };
+
   const salvar = async () => {
     if (!canSave || saving) return;
+    const dup = acharDuplicado();
+    if (dup) {
+      setParaJuntar(dup);
+      return;
+    }
     setSaving(true);
     setErro("");
     const r = await salvarCliente({ id: cliente.id, nome, cpf, telefone, endereco, vendedor });
@@ -4303,6 +4616,15 @@ function ClienteForm({ cliente, usuarios, onCancel, onSaved }) {
         ))}
       </select>
       {erro && <div style={{ ...missingTextStyle, color: "var(--locked)" }}>{erro}</div>}
+      {paraJuntar && (
+        <ConfirmDialog
+          title="Já existe um cliente com esses dados"
+          message={`${paraJuntar.nome} (${[paraJuntar.cpf && "CPF " + formatCPF(paraJuntar.cpf), paraJuntar.telefone && "tel. " + formatTelefone(paraJuntar.telefone)].filter(Boolean).join(", ") || "sem CPF/telefone"}) tem CPF ou telefone igual. Quer juntar os dois em um só cliente? ${cliente.id ? "O outro cadastro será apagado e os dados ficam neste." : "Os dados novos completam o cadastro existente."} Não dá para desfazer.`}
+          confirmLabel="Juntar clientes"
+          onConfirm={juntar}
+          onCancel={() => setParaJuntar(null)}
+        />
+      )}
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
         <button onClick={salvar} disabled={!canSave || saving} style={{ ...ghostBtnStyle, opacity: canSave ? 1 : 0.5 }}>
           <Check size={14} /> {saving ? "Salvando…" : "Salvar"}
@@ -4320,15 +4642,85 @@ function ClienteForm({ cliente, usuarios, onCancel, onSaved }) {
    ============================================================ */
 function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated }) {
   const [showForm, setShowForm] = useState(false);
+  const [vista, setVista] = useState(() => {
+    try {
+      return localStorage.getItem("pedidos-vista") === "grade" ? "grade" : "lista";
+    } catch (e) {
+      return "lista";
+    }
+  });
+  const [filtroStatus, setFiltroStatus] = useState("todos");
+  const [filtroVendedor, setFiltroVendedor] = useState("todos");
+  const [ordem, setOrdem] = useState("recentes");
+  const mudarVista = (v) => {
+    setVista(v);
+    try {
+      localStorage.setItem("pedidos-vista", v);
+    } catch (e) {}
+  };
+
   const visiveis = pedidosVisiveisParaPapel(index, papel);
   const buscaNorm = (busca || "").trim().toLowerCase();
-  const filtrados = buscaNorm
-    ? visiveis.filter((p) => p.cliente && p.cliente.toLowerCase().includes(buscaNorm))
+  const buscaNum = buscaNorm.replace(/\D/g, "");
+  const porBusca = buscaNorm
+    ? visiveis.filter(
+        (p) => (p.cliente && p.cliente.toLowerCase().includes(buscaNorm)) || (buscaNum && String(p.numero).includes(buscaNum))
+      )
     : visiveis;
-  const sorted = [...filtrados].sort((a, b) => b.numero - a.numero);
+
+  // Contagem por etapa (já considerando a busca) para os botões de filtro.
+  const contagem = {};
+  porBusca.forEach((p) => {
+    const s = p.status || "Agendar Medição";
+    contagem[s] = (contagem[s] || 0) + 1;
+  });
+  const vendedoresLista = [...new Set(visiveis.map((p) => p.vendedor).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const mostraFiltroVendedor = papel !== "Vendedor" && papel !== "Fábrica" && papel !== "Instalador" && vendedoresLista.length > 1;
+
+  const filtrados = porBusca.filter(
+    (p) =>
+      (filtroStatus === "todos" || (p.status || "Agendar Medição") === filtroStatus) &&
+      (filtroVendedor === "todos" || p.vendedor === filtroVendedor)
+  );
+  const sorted = [...filtrados].sort((a, b) =>
+    ordem === "nome" ? String(a.cliente || "").localeCompare(String(b.cliente || "")) : b.numero - a.numero
+  );
+  const filtrando = filtroStatus !== "todos" || filtroVendedor !== "todos" || !!buscaNorm;
+  const mostraValor = canVerValores(papel);
+
+  const chipStyle = (ativo, cor) => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+    padding: "6px 12px",
+    borderRadius: 999,
+    fontSize: 12.5,
+    fontWeight: ativo ? 700 : 500,
+    color: ativo ? "var(--ink)" : "var(--ink-soft)",
+    background: ativo ? "var(--surface-hi)" : "transparent",
+    border: `1px solid ${ativo ? cor || "var(--line-strong)" : "var(--line)"}`,
+    whiteSpace: "nowrap",
+  });
 
   return (
     <div style={{ paddingTop: 18 }}>
+      <style>{`
+        .ped-grid { display: grid; grid-template-columns: 90px 2fr 1.2fr 1.6fr ${mostraValor ? "1fr" : ""}; gap: 12px; align-items: center; }
+        .ped-head { padding: 10px 16px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); background: var(--surface-hi); border-bottom: 1px solid var(--line-strong); }
+        .ped-row { width: 100%; text-align: left; padding: 11px 16px; color: var(--ink); font-size: 14px; background: transparent; border: none; border-bottom: 1px solid var(--line); cursor: pointer; }
+        .ped-row:last-child { border-bottom: none; }
+        .ped-row:hover { background: var(--row-hover); }
+        .chips-scroll { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+        @media (max-width: 640px) {
+          .ped-head { display: none; }
+          .ped-grid { grid-template-columns: 1fr auto; gap: 2px 10px; }
+          .ped-grid > .c-vend { grid-column: 1; font-size: 12px; }
+          .ped-grid > .c-valor { grid-column: 2; grid-row: 2; text-align: right; }
+          .ped-grid > .c-num { grid-column: 1; }
+          .ped-grid > .c-status { grid-column: 2; grid-row: 1 / span 1; justify-self: end; }
+        }
+      `}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
         <h1 style={{ fontSize: 30, lineHeight: 1.05 }}>Pedidos</h1>
         {canEditStructure(papel) && (
@@ -4353,50 +4745,138 @@ function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated })
         </div>
       )}
 
+      {visiveis.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div className="chips-scroll">
+            <button onClick={() => setFiltroStatus("todos")} style={chipStyle(filtroStatus === "todos")}>
+              Todos <span style={{ color: "var(--ink-soft)", fontWeight: 500 }}>{porBusca.length}</span>
+            </button>
+            {STATUS_PEDIDO.filter((st) => contagem[st]).map((st) => (
+              <button key={st} onClick={() => setFiltroStatus(filtroStatus === st ? "todos" : st)} style={chipStyle(filtroStatus === st, statusPedidoColor(st))}>
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: statusPedidoColor(st) }} />
+                {st} <span style={{ color: "var(--ink-soft)", fontWeight: 500 }}>{contagem[st]}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
+            {mostraFiltroVendedor && (
+              <select value={filtroVendedor} onChange={(e) => setFiltroVendedor(e.target.value)} style={{ ...inputStyle(), width: "auto", minWidth: 150 }} aria-label="Filtrar por vendedor">
+                <option value="todos">Todos os vendedores</option>
+                {vendedoresLista.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            )}
+            <select value={ordem} onChange={(e) => setOrdem(e.target.value)} style={{ ...inputStyle(), width: "auto", minWidth: 150 }} aria-label="Ordenar">
+              <option value="recentes">Mais recentes primeiro</option>
+              <option value="nome">Nome do cliente (A–Z)</option>
+            </select>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+              <button onClick={() => mudarVista("lista")} title="Ver em lista" aria-label="Ver em lista" style={{ ...smallActionStyle, ...(vista === "lista" ? { borderColor: "var(--accent)", color: "var(--accent)" } : {}) }}>
+                <ListIcon size={15} />
+              </button>
+              <button onClick={() => mudarVista("grade")} title="Ver em grade" aria-label="Ver em grade" style={{ ...smallActionStyle, ...(vista === "grade" ? { borderColor: "var(--accent)", color: "var(--accent)" } : {}) }}>
+                <LayoutGrid size={15} />
+              </button>
+            </div>
+          </div>
+          {filtrando && (
+            <div style={{ ...missingTextStyle, color: "var(--ink-soft)", marginTop: 8 }}>
+              {sorted.length} {sorted.length === 1 ? "pedido" : "pedidos"}
+              {(filtroStatus !== "todos" || filtroVendedor !== "todos") && (
+                <button
+                  onClick={() => {
+                    setFiltroStatus("todos");
+                    setFiltroVendedor("todos");
+                  }}
+                  style={{ background: "none", border: "none", color: "var(--accent)", marginLeft: 8, fontSize: "inherit", textDecoration: "underline" }}
+                >
+                  limpar filtros
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {sorted.length === 0 && !showForm && (
         <div style={emptyStateStyle}>
-          {buscaNorm
-            ? "Nenhum cliente encontrado com esse nome."
+          {filtrando
+            ? "Nenhum pedido encontrado com esses filtros."
             : papel === "Instalador"
             ? "Nenhum pedido disponível para instalar/entregar no momento."
             : papel === "Fábrica"
             ? "Nenhum pedido em produção no momento."
             : "Nenhum pedido cadastrado ainda."}
-          {!buscaNorm && canEditStructure(papel) && ' Toque em "Novo pedido" para começar uma medição.'}
+          {!filtrando && canEditStructure(papel) && ' Toque em "Novo pedido" para começar uma medição.'}
         </div>
       )}
 
-      <div className="lista-grid">
-        {sorted.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => onOpen(p.id)}
-            style={{
-              ...cardStyle,
-              textAlign: "left",
-              color: "var(--ink)",
-              padding: "14px 16px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div>
-              <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-soft)" }}>
-                {pedidoLabel(p.numero)}
+      {vista === "lista" && sorted.length > 0 && (
+        <div style={{ background: "var(--surface)", border: "1px solid var(--line-strong)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
+          <div className="ped-grid ped-head">
+            <span>Pedido</span>
+            <span>Cliente</span>
+            <span>Vendedor</span>
+            <span>Etapa</span>
+            {mostraValor && <span style={{ textAlign: "right" }}>Valor</span>}
+          </div>
+          {sorted.map((p) => {
+            const vendaJaFeita = STATUS_POS_VENDA_FEITA.includes(p.status);
+            const valor = vendaJaFeita ? p.valorFechado : p.valorTotal;
+            return (
+              <button key={p.id} className="ped-grid ped-row" onClick={() => onOpen(p.id)}>
+                <span className="c-num" style={{ fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink-soft)" }}>
+                  {pedidoLabel(p.numero)}
+                </span>
+                <span style={{ fontWeight: 700, fontSize: 15 }}>{p.cliente}</span>
+                <span className="c-vend" style={{ color: "var(--ink-soft)" }}>
+                  {p.vendedor || "—"}
+                </span>
+                <span className="c-status">
+                  <StatusPedidoBadge status={p.status || "Agendar Medição"} />
+                </span>
+                {mostraValor && (
+                  <span className="c-valor" style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 13 }}>
+                    {valor ? fmtValor(valor) : "—"}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {vista === "grade" && (
+        <div className="lista-grid">
+          {sorted.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => onOpen(p.id)}
+              style={{
+                ...cardStyle,
+                textAlign: "left",
+                color: "var(--ink)",
+                padding: "14px 16px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-soft)" }}>{pedidoLabel(p.numero)}</div>
+                <div style={{ fontSize: 14.5, fontWeight: 600, marginTop: 2 }}>{p.cliente}</div>
+                <div style={{ marginTop: 4 }}>
+                  <StatusPedidoBadge status={p.status || "Agendar Medição"} />
+                </div>
               </div>
-              <div style={{ fontSize: 14.5, fontWeight: 600, marginTop: 2 }}>{p.cliente}</div>
-              {/* Um único selo de status por pedido: "Em produção" e "Disponível para
-                  instalar" já são valores do próprio status (derivarStatusPedido), então
-                  não existe mais um segundo selo repetindo a mesma informação. */}
-              <div style={{ marginTop: 4 }}>
-                <StatusPedidoBadge status={p.status || "Agendar Medição"} />
-              </div>
-            </div>
-            <ChevronRight size={18} color="var(--ink-soft)" />
-          </button>
-        ))}
-      </div>
+              <ChevronRight size={18} color="var(--ink-soft)" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -5454,7 +5934,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", onConfirm, 
         position: "fixed",
         inset: 0,
         background: "var(--overlay)",
-        zIndex: 60,
+        zIndex: 200,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
