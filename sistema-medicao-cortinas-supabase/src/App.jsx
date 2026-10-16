@@ -5475,7 +5475,7 @@ function PedidoDetail({
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 6 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 6 }}>
         {ambientesVisiveis.map((amb) => (
           <AmbienteAccordion
             key={amb.id}
@@ -5679,8 +5679,10 @@ function NovoAmbienteInline({ onCancel, onCreate }) {
    ============================================================ */
 function AmbienteAccordion({ ambiente, open, onToggle, papel, nome, onAddPeca, onUpdatePeca, onDeletePeca, onOpenPeca }) {
   const count = ambiente.pecas.length;
+  const salvas = ambiente.pecas.filter((p) => p.locked).length;
+  const totalAmb = ambiente.pecas.reduce((soma, p) => soma + (p.valor || 0), 0);
   return (
-    <div style={{ border: "1px solid var(--line-strong)", borderRadius: 10, background: "var(--surface-hi)", overflow: "hidden" }}>
+    <div style={{ border: "1px solid var(--line-strong)", borderRadius: 12, background: "var(--surface-hi)", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
       <button
         onClick={onToggle}
         style={{
@@ -5688,17 +5690,21 @@ function AmbienteAccordion({ ambiente, open, onToggle, papel, nome, onAddPeca, o
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "12px 14px",
+          padding: "14px 14px",
           background: "none",
           border: "none",
-          borderLeft: "3px solid var(--accent)",
+          borderLeft: "4px solid var(--accent)",
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 600 }}>{ambiente.nome}</span>
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+        <span style={{ textAlign: "left", minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 16, fontWeight: 700 }}>{ambiente.nome}</span>
+          <span style={{ display: "block", fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
             {count} {count === 1 ? "peça" : "peças"}
+            {count > 0 && ` · ${salvas} ${salvas === 1 ? "medida salva" : "medidas salvas"}`}
+            {canVerValores(papel) && totalAmb > 0 && ` · ${fmtValor(totalAmb)}`}
           </span>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {open ? <ChevronDown size={17} color="var(--ink-soft)" /> : <ChevronRight size={17} color="var(--ink-soft)" />}
         </span>
       </button>
@@ -5710,7 +5716,7 @@ function AmbienteAccordion({ ambiente, open, onToggle, papel, nome, onAddPeca, o
               Nenhuma peça neste ambiente ainda.
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginLeft: 6, paddingLeft: 12, borderLeft: "2px solid var(--line-strong)" }}>
               {ambiente.pecas.map((p) => (
                 <PecaRow
                   key={p.id}
@@ -5847,14 +5853,63 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
   const d = useMedicaoDraft(peca, papel, nome, onUpdate);
   const [confirmando, setConfirmando] = useState(false);
   const podeExcluir = canDeletePeca(peca, papel);
+  // Peça sem medida salva já nasce aberta (para preencher rápido). Depois de
+  // salva, fecha numa linha compacta; toca na linha para ver tudo de novo.
+  const [aberta, setAberta] = useState(!peca.locked);
+  const eraTravada = useRef(peca.locked);
+  useEffect(() => {
+    if (peca.locked && !eraTravada.current) setAberta(false); // acabou de salvar a medição
+    eraTravada.current = peca.locked;
+  }, [peca.locked]);
+
+  const situacao = peca.statusProducao || (peca.locked ? "Medida salva" : "Sem medida");
+  const corSituacao = peca.statusProducao ? statusPedidoColor(peca.statusProducao) : peca.locked ? "var(--success)" : "var(--amber)";
+  const medidaTxt =
+    peca.largura && peca.altura
+      ? `${fmtMedida(peca.largura)} × ${fmtMedida(peca.altura)} m${peca.alturaCurta ? ` (curta ${fmtMedida(peca.alturaCurta)})` : ""}`
+      : "—";
+
+  if (!aberta && peca.locked) {
+    return (
+      <button
+        onClick={() => setAberta(true)}
+        title="Ver detalhes da peça"
+        style={{
+          width: "100%",
+          textAlign: "left",
+          color: "var(--ink)",
+          border: "1px solid var(--line)",
+          borderLeft: `4px solid ${corSituacao}`,
+          borderRadius: 10,
+          padding: "10px 12px",
+          background: "var(--surface)",
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: "4px 10px",
+        }}
+      >
+        <span style={{ fontFamily: "var(--mono)", fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>{peca.codigo}</span>
+        <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>{peca.tipo}</span>
+        <span style={{ ...statusBadgeStyle(corSituacao), fontSize: 11 }}>{situacao}</span>
+        <span style={{ flex: 1 }} />
+        <ChevronRight size={16} color="var(--ink-soft)" />
+        <span style={{ flexBasis: "100%", display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
+          <span style={{ fontWeight: 600 }}>{medidaTxt}</span>
+          {canVerValores(papel) && peca.valor > 0 && <span style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{fmtValor(peca.valor)}</span>}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div
       style={{
         border: "1px solid var(--line-strong)",
+        borderLeft: `4px solid ${corSituacao}`,
         borderRadius: 10,
-        padding: "10px 12px",
-        background: peca.locked ? "var(--bg)" : "var(--surface-hi)",
+        padding: "12px 14px",
+        background: peca.locked ? "var(--bg)" : "var(--surface)",
       }}
     >
       {confirmando && (
@@ -5978,8 +6033,16 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
           marginTop: 8,
         }}
       >
-        <Info size={14} /> Abrir informações da peça
+        <Info size={14} /> Abrir ficha completa da peça
       </button>
+      {peca.locked && (
+        <button
+          onClick={() => setAberta(false)}
+          style={{ background: "none", border: "none", color: "var(--ink-soft)", fontSize: 12.5, width: "100%", marginTop: 6, padding: 4, textDecoration: "underline" }}
+        >
+          Recolher
+        </button>
+      )}
     </div>
   );
 }
