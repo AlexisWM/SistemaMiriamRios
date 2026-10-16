@@ -3210,15 +3210,31 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
   const taxaFechamento = totalGeral > 0 ? (totalVendas / totalGeral) * 100 : 0;
   const pctPerdido = totalGeral > 0 ? (totalPerdido / totalGeral) * 100 : 0;
   const maxVendas = dados.reduce((m, d) => Math.max(m, d.vendas), 0);
-  const lider = dados.length > 0 && dados[0].vendas > 0 ? dados[0] : null;
-  const mediaPorVendedor = dados.length > 0 ? totalVendas / dados.length : 0;
+  // Fatias da rosca: faturamento (todas as vendas do período) por vendedor.
+  const porVendedor = {};
+  vendasPeriodo.forEach((v) => {
+    porVendedor[v.vendedor] = (porVendedor[v.vendedor] || 0) + v.valor;
+  });
+  const fatias = Object.entries(porVendedor)
+    .map(([nomeV, valor]) => ({ nome: nomeV, valor }))
+    .sort((x, y) => y.valor - x.valor);
   const mesLabel = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   const diaLabel = new Date(dia + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
   const porLabel = periodo === "mes" ? "mês" : "dia";
   // Só aparece depois do clique em "Ver todas as vendas": inclui TODOS
   // (Vendedor, Gestor, Gestor Master e Administrativo).
-  const vendasDetalhe = vendasPeriodo
+  const vendasDetalhe = [...vendasPeriodo]
     .sort((x, y) => (y.quando > x.quando ? 1 : -1));
+  const pedidosVendidos = [];
+  vendasDetalhe.forEach((v) => {
+    let g = pedidosVendidos.find((x) => x.numero === v.pedidoNumero && x.vendedor === v.vendedor);
+    if (!g) {
+      g = { numero: v.pedidoNumero, cliente: v.cliente, vendedor: v.vendedor, quando: v.quando, total: 0, pecas: [] };
+      pedidosVendidos.push(g);
+    }
+    g.total += v.valor;
+    g.pecas.push(v);
+  });
 
   return (
     <div style={{ paddingTop: 18 }}>
@@ -3324,23 +3340,10 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
             </div>
           </div>
 
-          {/* Três quadros menores */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: 10,
-              margin: "12px 0 16px",
-            }}
-          >
-            <PainelMiniCard Icon={UsersIcon} titulo="Vendedores ativos" valor={String(dados.length)} />
-            <PainelMiniCard
-              Icon={Trophy}
-              titulo={`Líder do ${porLabel}`}
-              valor={lider ? lider.usuario.nome : "—"}
-              detalhe={lider ? fmtValor(lider.vendas) : undefined}
-            />
-            <PainelMiniCard Icon={BarChart3} titulo="Média por vendedor" valor={fmtValor(mediaPorVendedor)} />
+          {/* Participação de cada vendedor no faturamento (rosca = 100%) */}
+          <div style={{ ...painelHeroStyle, margin: "12px 0 16px" }}>
+            <div style={painelEyebrowStyle}>Faturamento por vendedor</div>
+            <PainelRosca fatias={fatias} total={totalVendas} />
           </div>
 
           </div>
@@ -3428,27 +3431,46 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
       )}
 
       {detalhe && (
-        <FolhaInferior rotulo={periodo === "mes" ? mesLabel : diaLabel} titulo={`Todas as vendas do ${porLabel}`} onClose={() => setDetalhe(false)}>
+        <FolhaInferior rotulo={periodo === "mes" ? cap1(mesLabel) : diaLabel} titulo={`Todas as vendas do ${porLabel}`} onClose={() => setDetalhe(false)}>
           <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12 }}>
-            {vendasDetalhe.length} {vendasDetalhe.length === 1 ? "peça vendida" : "peças vendidas"} · total{" "}
+            {pedidosVendidos.length} {pedidosVendidos.length === 1 ? "pedido" : "pedidos"} · {vendasDetalhe.length} {vendasDetalhe.length === 1 ? "peça" : "peças"} · total{" "}
             <b style={{ color: "var(--success)" }}>{fmtValor(vendasDetalhe.reduce((x, v) => x + v.valor, 0))}</b>
           </div>
           {vendasDetalhe.length === 0 ? (
             <div style={emptyStateStyle}>Nenhuma venda {periodo === "mes" ? "neste mês" : "neste dia"}.</div>
           ) : (
-            vendasDetalhe.map((v, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "10px 0", borderTop: i === 0 ? "none" : "1px solid var(--line)" }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{v.cliente}</div>
-                  <div style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>{v.vendedor}</div>
-                  <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-                    {pedidoLabel(v.pedidoNumero)} · {v.ambiente} · <span style={{ fontFamily: "var(--mono)" }}>{v.codigo}</span>
-                  </div>
+            pedidosVendidos.map((g) => (
+              <div key={g.numero} style={{ ...painelHeroStyle, padding: "14px 16px", marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <div style={painelEyebrowStyle}>{pedidoLabel(g.numero)}</div>
                   <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
-                    {new Date(v.quando.length === 10 ? v.quando + "T12:00:00" : v.quando).toLocaleDateString("pt-BR")}
+                    {new Date(g.quando.length === 10 ? g.quando + "T12:00:00" : g.quando).toLocaleDateString("pt-BR")}
                   </div>
                 </div>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 14, fontWeight: 600, flexShrink: 0 }}>{fmtValor(v.valor)}</div>
+                <div style={{ fontSize: 17, fontWeight: 700, marginTop: 8 }}>{g.cliente}</div>
+                <div style={{ fontSize: 12.5, color: "var(--accent)", fontWeight: 600, marginTop: 2 }}>Vendedor: {g.vendedor}</div>
+                <div
+                  style={{
+                    fontFamily: "var(--display)",
+                    fontSize: 32,
+                    fontWeight: 700,
+                    lineHeight: 1.1,
+                    fontVariantNumeric: "tabular-nums",
+                    margin: "10px 0 8px",
+                  }}
+                >
+                  {fmtValor(g.total)}
+                </div>
+                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 6 }}>
+                  {g.pecas.map((v, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, padding: "3px 0", color: "var(--ink-soft)" }}>
+                      <span>
+                        {v.ambiente} · <span style={{ fontFamily: "var(--mono)" }}>{v.codigo}</span>
+                      </span>
+                      <span style={{ fontFamily: "var(--mono)", color: "var(--ink)" }}>{fmtValor(v.valor)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))
           )}
@@ -3500,6 +3522,62 @@ const painelHeroStyle = {
 };
 
 /* Barra de progresso (0–100). */
+const CORES_ROSCA = ["#E8A870", "#6FB1FF", "#7BD3A0", "#C79BFF", "#F0C75E", "#FF8FA3", "#8FD3E8", "#B0B8C8"];
+/* Gráfico de rosca (pizza vazada): o círculo todo é 100% do faturamento e
+   cada fatia é a parte de um vendedor. */
+function PainelRosca({ fatias, total }) {
+  const R = 64;
+  const C = 2 * Math.PI * R;
+  let acumulado = 0;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 14 }}>
+      <div style={{ position: "relative", width: 176, height: 176, flexShrink: 0, margin: "0 auto" }}>
+        <svg width="176" height="176" viewBox="0 0 176 176" style={{ transform: "rotate(-90deg)" }}>
+          <circle cx="88" cy="88" r={R} fill="none" stroke="var(--track)" strokeWidth="20" />
+          {total > 0 &&
+            fatias.map((f, i) => {
+              const frac = f.valor / total;
+              const comp = frac * C;
+              const el = (
+                <circle
+                  key={f.nome}
+                  cx="88"
+                  cy="88"
+                  r={R}
+                  fill="none"
+                  stroke={CORES_ROSCA[i % CORES_ROSCA.length]}
+                  strokeWidth="20"
+                  strokeDasharray={`${Math.max(0, comp - 1.5)} ${C - Math.max(0, comp - 1.5)}`}
+                  strokeDashoffset={-acumulado}
+                />
+              );
+              acumulado += comp;
+              return el;
+            })}
+        </svg>
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontFamily: "var(--display)", fontSize: 24, fontWeight: 700, lineHeight: 1 }}>{total > 0 ? "100%" : "—"}</div>
+          <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 3 }}>faturamento</div>
+        </div>
+      </div>
+      <div style={{ flex: 1, minWidth: 170, display: "flex", flexDirection: "column", gap: 7 }}>
+        {fatias.length === 0 ? (
+          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Nenhuma venda no período.</div>
+        ) : (
+          fatias.map((f, i) => (
+            <div key={f.nome} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: CORES_ROSCA[i % CORES_ROSCA.length], flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.nome}</span>
+              <span style={{ fontFamily: "var(--mono)", fontWeight: 700 }}>{fmtPct((f.valor / total) * 100)}</span>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-soft)", minWidth: 78, textAlign: "right" }}>{fmtValor(f.valor)}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PainelBarra({ pct, cor }) {
   const largura = Math.max(0, Math.min(100, pct || 0));
   return (
