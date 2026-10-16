@@ -21,6 +21,7 @@ import {
   registrarCliente,
   salvarCliente,
   juntarClientes,
+  excluirPedido,
   atualizarMinhaFoto,
   alterarMinhaSenha,
   excluirUsuario,
@@ -1160,7 +1161,7 @@ function labelTipoCoz(cozTipo, comFitaFacil) {
 
 /* Perfis de acesso. Vêm de um usuário autenticado de verdade (Supabase
    Auth + tabela `perfis`), não mais autodeclarados na entrada do app. */
-const PAPEIS = ["Gestor Master", "Gestor", "Vendedor", "Fábrica", "Instalador"];
+const PAPEIS = ["Gestor Master", "Gestor", "Administrativo", "Vendedor", "Fábrica", "Instalador"];
 
 /* Status do pedido (etapa comercial/agenda). Não é mais um campo livre:
    é derivado automaticamente dos dados (medição salva, valor preenchido,
@@ -1560,8 +1561,12 @@ function redimensionarFoto(file, lado = 256) {
     img.src = url;
   });
 }
+/* Gestor, Gestor Master e Administrativo têm os mesmos acessos no sistema. */
+function isGestor(papel) {
+  return papel === "Gestor" || papel === "Gestor Master" || papel === "Administrativo";
+}
 function canVerClientes(papel) {
-  return papel === "Gestor" || papel === "Gestor Master";
+  return isGestor(papel);
 }
 /* ------------------------------------------------------------
    COR DE DESTAQUE DO SISTEMA
@@ -1630,32 +1635,35 @@ function buildMonthGrid(monthDate) {
   return days;
 }
 function canEditStructure(papel) {
-  return papel === "Vendedor" || papel === "Gestor" || papel === "Gestor Master";
+  return papel === "Vendedor" || isGestor(papel);
 }
 function canEditMedicao(peca, papel) {
   if (papel === "Fábrica" || papel === "Instalador") return false;
-  if (!peca.locked) return papel === "Vendedor" || papel === "Gestor" || papel === "Gestor Master";
-  return papel === "Gestor" || papel === "Gestor Master";
+  if (!peca.locked) return papel === "Vendedor" || isGestor(papel);
+  return isGestor(papel);
 }
 /* Cortina "fechada" (medição já salva) pode ser mandada para produção
    por quem vende/gerencia. Só Fábrica/Gestor/Gestor Master tiram a peça
    da produção e liberam para o instalador — Vendedor nunca faz isso. */
 function canEnviarProducao(papel) {
-  return papel === "Vendedor" || papel === "Gestor" || papel === "Gestor Master";
+  return papel === "Vendedor" || isGestor(papel);
 }
 function canAvancarInstalar(papel) {
-  return papel === "Fábrica" || papel === "Gestor" || papel === "Gestor Master";
+  return papel === "Fábrica" || isGestor(papel);
 }
 /* Fecha o ciclo: só quem instala (ou gerencia) marca a peça como
    instalada de fato. Fábrica não — o trabalho dela termina em
    "disponível para instalar". */
 function canMarcarInstalado(papel) {
-  return papel === "Instalador" || papel === "Gestor" || papel === "Gestor Master";
+  return papel === "Instalador" || isGestor(papel);
 }
 /* Corrigir um clique errado: só Gestor/Gestor Master devolve o pedido pra
    etapa anterior da esteira de produção. */
+function canExcluirPedido(papel) {
+  return isGestor(papel);
+}
 function canVoltarEtapa(papel) {
-  return papel === "Gestor" || papel === "Gestor Master";
+  return isGestor(papel);
 }
 function canVerComercial(papel) {
   return papel !== "Fábrica";
@@ -1666,24 +1674,24 @@ function canVerComercial(papel) {
    Gestor Master editam tudo, sempre. O campo Vendedor responsável nunca é
    editável por um Vendedor, só por quem gerencia. */
 function canEditClienteInfo(papel) {
-  return papel === "Vendedor" || papel === "Gestor" || papel === "Gestor Master";
+  return papel === "Vendedor" || isGestor(papel);
 }
 function canEditEndereco(pedido, papel) {
-  if (papel === "Gestor" || papel === "Gestor Master") return true;
+  if (isGestor(papel)) return true;
   if (papel !== "Vendedor") return false;
   const medicaoJaFeita = pedido.ambientes.flatMap((a) => a.pecas).some((p) => p.locked);
   return !medicaoJaFeita;
 }
 function canEditVendedorField(papel) {
-  return papel === "Gestor" || papel === "Gestor Master";
+  return isGestor(papel);
 }
 /* Valor da peça (preço): só quem vende/gerencia enxerga ou mexe. Fábrica e
    Instalador nunca veem preço — nem na lista, nem na ficha, nem no total. */
 function canVerValores(papel) {
-  return papel === "Vendedor" || papel === "Gestor" || papel === "Gestor Master";
+  return papel === "Vendedor" || isGestor(papel);
 }
 function canGerenciarUsuarios(papel) {
-  return papel === "Gestor Master" || papel === "Gestor";
+  return isGestor(papel);
 }
 function canEditarUsuarioCompleto(papel) {
   return papel === "Gestor Master";
@@ -1704,7 +1712,7 @@ function canAgendar(papel) {
    salva, só Gestor/Gestor Master apagam — mesma lógica de bloqueio já usada
    para editar uma medição salva. */
 function canDeletePeca(peca, papel) {
-  if (peca.locked) return papel === "Gestor" || papel === "Gestor Master";
+  if (peca.locked) return isGestor(papel);
   return canEditStructure(papel);
 }
 function canVerCalendario(papel) {
@@ -1902,6 +1910,23 @@ export default function App() {
       pendingPedidoRef.current = null;
       savePedido(pendente);
     }
+  }, []);
+
+  // Exclusão definitiva (Gestor/Gestor Master). Descarta qualquer gravação
+  // pendente antes, senão o salvamento atrasado "ressuscitaria" o pedido.
+  const excluirPedidoApp = useCallback(async (id) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    pendingPedidoRef.current = null;
+    const ok = await excluirPedido(id);
+    if (!ok) return false;
+    setIndex((prev) => prev.filter((e) => e.id !== id));
+    setEventos((prev) => prev.filter((e) => e.pedidoId !== id));
+    setPedido(null);
+    setRoute({ screen: "lista" });
+    return true;
   }, []);
 
   const persistPedido = useCallback(
@@ -2134,6 +2159,7 @@ export default function App() {
             onExcluirEvento={excluirEvento}
             onAbrirCalendario={() => setRoute({ screen: "calendario" })}
             onIrParaPedidos={() => setRoute({ screen: "lista" })}
+            onExcluirPedido={excluirPedidoApp}
           />
         )
       )}
@@ -2854,6 +2880,7 @@ function RoleDot({ papel }) {
     "Vendedor": "#7FB0E0",
     "Gestor": "#EE8A78",
     "Gestor Master": "#B48CE6",
+    "Administrativo": "#5CC8CC",
     "Fábrica": "#7CC79A",
     "Instalador": "#E8BC55",
   };
@@ -3068,7 +3095,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
     (async () => {
       setCarregando(true);
       const relevantes = usuarios.filter(
-        (u) => ["Vendedor", "Gestor", "Gestor Master"].includes(u.papel) && u.ativo !== false
+        (u) => ["Vendedor", "Gestor"].includes(u.papel) && u.ativo !== false
       );
       const resultados = await Promise.all(
         relevantes.map(async (u) => ({
@@ -3395,9 +3422,7 @@ function UsuariosScreen({ session, usuarios, onBack, onUsuariosChange }) {
       await onUsuariosChange();
     } catch (e) {
       setErroExcluir(
-        /excluir_usuario|function|schema cache/i.test(e.message || "")
-          ? "A função de exclusão ainda não foi instalada no banco (rodar supabase/excluir_usuario.sql)."
-          : e.message || "Não foi possível excluir."
+e.message || "Não foi possível excluir."
       );
     }
     setApagando(false);
@@ -4522,7 +4547,7 @@ function ClienteForm({ cliente, todos = [], usuarios, onCancel, onSaved }) {
   const [erro, setErro] = useState("");
   const [paraJuntar, setParaJuntar] = useState(null); // cliente já existente com dado igual
   const vendedores = usuarios
-    .filter((u) => ["Vendedor", "Gestor", "Gestor Master"].includes(u.papel) && u.ativo !== false)
+    .filter((u) => ["Vendedor", "Gestor", "Gestor Master", "Administrativo"].includes(u.papel) && u.ativo !== false)
     .sort((a, b) => a.nome.localeCompare(b.nome));
   const canSave = nome.trim().length > 0 && cpfValido(cpf);
 
@@ -4894,7 +4919,7 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
   const vendedorTravado = papel === "Vendedor";
 
   const usuariosVendedores = usuarios
-    .filter((u) => ["Vendedor", "Gestor", "Gestor Master"].includes(u.papel) && u.ativo !== false)
+    .filter((u) => ["Vendedor", "Gestor", "Gestor Master", "Administrativo"].includes(u.papel) && u.ativo !== false)
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
   const canSave = cliente.trim().length > 0 && cpfValido(cpf);
@@ -5013,7 +5038,11 @@ function PedidoDetail({
   onExcluirEvento,
   onAbrirCalendario,
   onIrParaPedidos,
+  onExcluirPedido,
 }) {
+  const [excluindoPedido, setExcluindoPedido] = useState(false);
+  const [apagandoPedido, setApagandoPedido] = useState(false);
+  const [erroExcluirPedido, setErroExcluirPedido] = useState("");
   const [expanded, setExpanded] = useState(() => new Set(pedido.ambientes.slice(0, 1).map((a) => a.id)));
   const [showNovoAmbiente, setShowNovoAmbiente] = useState(false);
   const [agendaFormTipo, setAgendaFormTipo] = useState(null); // "Medida" | "Instalação" | null
@@ -5236,7 +5265,38 @@ function PedidoDetail({
             <Pencil size={16} />
           </button>
         )}
+        {canExcluirPedido(papel) && !editandoInfo && (
+          <button
+            onClick={() => setExcluindoPedido(true)}
+            title="Excluir pedido"
+            aria-label="Excluir pedido"
+            style={{ background: "none", border: "none", padding: 4, color: "var(--locked)", flexShrink: 0 }}
+          >
+            <Trash2 size={16} />
+          </button>
+        )}
       </div>
+
+      {excluindoPedido && (
+        <ConfirmDialog
+          title={`Excluir o pedido ${pedidoLabel(pedido.numero)} de "${pedido.cliente}"?`}
+          message={`Ambientes, peças, medidas, orçamento e agendamentos deste pedido serão apagados de vez. Não dá para desfazer.${erroExcluirPedido ? "\n\n" + erroExcluirPedido : ""}`}
+          confirmLabel={apagandoPedido ? "Excluindo…" : "Excluir pedido"}
+          onConfirm={async () => {
+            setApagandoPedido(true);
+            setErroExcluirPedido("");
+            const ok = await onExcluirPedido(pedido.id);
+            if (!ok) {
+              setApagandoPedido(false);
+              setErroExcluirPedido("Não foi possível excluir. Tente novamente.");
+            }
+          }}
+          onCancel={() => {
+            setExcluindoPedido(false);
+            setErroExcluirPedido("");
+          }}
+        />
+      )}
 
       {editandoInfo ? (
         <EditarPedidoInfo
@@ -5466,7 +5526,7 @@ function EditarPedidoInfo({ pedido, papel, usuarios, onChange, onCancel }) {
   const podeEditarEndereco = canEditEndereco(pedido, papel);
   const podeEditarVendedor = canEditVendedorField(papel);
   const usuariosVendedores = usuarios
-    .filter((u) => ["Vendedor", "Gestor", "Gestor Master"].includes(u.papel) && u.ativo !== false)
+    .filter((u) => ["Vendedor", "Gestor", "Gestor Master", "Administrativo"].includes(u.papel) && u.ativo !== false)
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
   const canSalvar = cliente.trim().length > 0 && cpfValido(cpf);
@@ -5710,7 +5770,7 @@ function useMedicaoDraft(peca, papel, nome, onUpdate) {
   const applyChange = (field, val) => {
     const before = peca[field];
     if (before === val) return;
-    if (peca.locked && (papel === "Gestor" || papel === "Gestor Master")) {
+    if (peca.locked && (isGestor(papel))) {
       const { data, hora } = nowParts();
       const historico = [
         ...peca.historico,
@@ -5839,7 +5899,7 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
         <span style={{ flex: 1 }} />
         {peca.locked && (
           <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--locked)" }}>
-            <Lock size={12} /> {papel === "Gestor" || papel === "Gestor Master" ? "editável (gestor)" : "bloqueada"}
+            <Lock size={12} /> {isGestor(papel) ? "editável (gestor)" : "bloqueada"}
           </span>
         )}
         {podeExcluir && (
@@ -8069,7 +8129,7 @@ function FichaMedicao({ peca, papel, nome, onUpdate }) {
 
   return (
     <div style={cardStyle}>
-      {peca.locked && (papel === "Gestor" || papel === "Gestor Master") && (
+      {peca.locked && (isGestor(papel)) && (
         <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--locked)", marginBottom: 12 }}>
           <Lock size={11} /> Medição já salva — qualquer alteração fica registrada no histórico
         </div>
