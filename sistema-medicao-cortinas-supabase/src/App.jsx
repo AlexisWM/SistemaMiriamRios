@@ -19,6 +19,7 @@ import {
   loadPrecosOrcamento,
   loadClientes,
   registrarCliente,
+  buscarClientePorDocumento,
   salvarCliente,
   juntarClientes,
   excluirPedido,
@@ -218,6 +219,32 @@ const ABERTURAS_CORTINA = [
 function folhasDaAbertura(abertura) {
   const item = ABERTURAS_CORTINA.find((a) => a.chave === abertura);
   return item ? item.folhas : null;
+}
+// Largura de confecção: a cortina é feita mais larga que a medida do
+// vão. Acréscimo TOTAL (soma de todas as folhas) por Abertura: Inteira
+// +0,10m, Aberta ao Meio +0,15m, 4 e 5 Aberturas +0,20m. Ex.: vão de
+// 3,20 → 3,30 / 3,35 / 3,40 / 3,40. Cada folha leva o total dividido
+// pelo número de folhas. A altura ainda não tem desconto/acréscimo
+// (as fórmulas por modelo virão depois) — usa a medida como está.
+const ACRESCIMO_LARGURA_ABERTURA = { inteira: 0.1, aberta_meio: 0.15, "4_aberturas": 0.2, "5_aberturas": 0.2 };
+function calcularConfeccaoCamada(peca, abertura, acabamento) {
+  const folhas = folhasDaAbertura(abertura);
+  if (!folhas || peca.largura == null) return { folhas, total: null, porFolha: null, altura: peca.altura ?? null, acrescimo: false };
+  // O acréscimo só vale pro Franzido. No Wave prevalece o cordão (a largura
+  // vem da contagem de ondas); Varão também não leva esse acréscimo.
+  const acrescimo = acabamento === "Franzido";
+  const total = round2(peca.largura + (acrescimo ? ACRESCIMO_LARGURA_ABERTURA[abertura] : 0));
+  return { folhas, total, porFolha: round2(total / folhas), altura: peca.altura ?? null, acrescimo };
+}
+function textoConfeccao(conf) {
+  if (!conf.folhas) return { folhas: "—", medida: "Escolher a Abertura", total: null };
+  const alt = fmtMedida(conf.altura) || "—";
+  const medida = conf.porFolha != null ? `${fmtMedida(conf.porFolha)} x ${alt}` : "—";
+  return {
+    folhas: String(conf.folhas),
+    medida: conf.folhas > 1 && conf.porFolha != null ? `${medida} (cada folha)` : medida,
+    total: conf.total != null ? `${fmtMedida(conf.total)} m` : null,
+  };
 }
 const CAMADAS_CORTINA = ["fundo", "forro", "xale"];
 const CAMADA_LABEL = { fundo: "Fundo", forro: "Forro", xale: "Xale" };
@@ -1370,6 +1397,43 @@ async function calcularVendidoMes(nomeVendedor, index) {
   }
   return total;
 }
+function dataLocalISO(valor) {
+  if (!valor) return "";
+  if (valor.length === 10) return valor;
+  const d = new Date(valor);
+  if (isNaN(d)) return valor.slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function hojeISO() {
+  return dataLocalISO(new Date().toISOString());
+}
+/* Todas as vendas confirmadas (peça a peça) dos pedidos dos vendedores
+   informados — base do Painel de vendas (mês ou dia) e do detalhamento. */
+async function coletarVendas(nomes, index) {
+  const lista = [];
+  for (const p of index.filter((x) => nomes.includes(x.vendedor))) {
+    const pedido = await loadPedido(p.id);
+    if (!pedido) continue;
+    pedido.ambientes.forEach((a) =>
+      a.pecas.forEach((peca) => {
+        if (peca.valor && peca.vendaFeitaEm) {
+          lista.push({
+            vendedor: p.vendedor,
+            pedidoNumero: pedido.numero,
+            cliente: pedido.cliente,
+            ambiente: a.nome,
+            codigo: peca.codigo,
+            valor: peca.valor,
+            quando: peca.vendaFeitaEm,
+            dia: dataLocalISO(peca.vendaFeitaEm),
+          });
+        }
+      })
+    );
+  }
+  return lista;
+}
+
 /* Quanto foi perdido no mês atual: soma o valor total dos pedidos
    marcados "Orçamento Perdido" neste mês. Como isso é uma escolha manual
    no próprio pedido (não peça a peça), dá pra somar direto do índice —
@@ -2228,7 +2292,7 @@ export default function App() {
       )}
 
       {route.screen === "clientes" && canVerClientes(session.papel) && (
-        <ClientesScreen usuarios={usuarios} onBack={() => setRoute({ screen: "lista" })} />
+        <ClientesScreen usuarios={usuarios} index={index} onAbrirPedido={(id) => openPedido(id)} onBack={() => setRoute({ screen: "lista" })} />
       )}
 
       {route.screen === "painel" && canGerenciarUsuarios(session.papel) && (
@@ -3092,32 +3156,43 @@ function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios, on
    ============================================================ */
 function PainelGestorScreen({ usuarios, index, onBack }) {
   const [carregando, setCarregando] = useState(true);
-  const [dados, setDados] = useState([]); // [{ usuario, vendas, perdido }]
+  const [vendas, setVendas] = useState([]);
+  const [periodo, setPeriodo] = useState("mes"); // "mes" | "dia"
+  const [dia, setDia] = useState(hojeISO());
+  const [detalhe, setDetalhe] = useState(null); // usuário aberto no detalhamento
+
+  const relevantes = usuarios.filter((u) => ["Vendedor", "Gestor"].includes(u.papel) && u.ativo !== false);
 
   useEffect(() => {
     let cancelado = false;
     (async () => {
       setCarregando(true);
-      const relevantes = usuarios.filter(
-        (u) => ["Vendedor", "Gestor"].includes(u.papel) && u.ativo !== false
-      );
-      const resultados = await Promise.all(
-        relevantes.map(async (u) => ({
-          usuario: u,
-          vendas: await calcularVendidoMes(u.nome, index),
-          perdido: calcularPerdidoMes(index, u.nome),
-        }))
-      );
-      resultados.sort((a, b) => b.vendas - a.vendas);
+      const lista = await coletarVendas(relevantes.map((u) => u.nome), index);
       if (!cancelado) {
-        setDados(resultados);
+        setVendas(lista);
         setCarregando(false);
       }
     })();
     return () => {
       cancelado = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuarios, index]);
+
+  const anoMes = mesAtualISO();
+  const noPeriodo = (iso) => (periodo === "mes" ? iso.slice(0, 7) === anoMes : iso === dia);
+  const vendasPeriodo = vendas.filter((v) => noPeriodo(v.dia));
+  const perdidoDe = (nome) =>
+    index
+      .filter((p) => p.vendedor === nome && p.status === "Orçamento Perdido" && p.perdidoEm && noPeriodo(dataLocalISO(p.perdidoEm)))
+      .reduce((soma, p) => soma + (p.valorTotal || 0), 0);
+  const dados = relevantes
+    .map((u) => ({
+      usuario: u,
+      vendas: vendasPeriodo.filter((v) => v.vendedor === u.nome).reduce((soma, v) => soma + v.valor, 0),
+      perdido: perdidoDe(u.nome),
+    }))
+    .sort((x, y) => y.vendas - x.vendas);
 
   const totalVendas = dados.reduce((soma, d) => soma + d.vendas, 0);
   const totalPerdido = dados.reduce((soma, d) => soma + d.perdido, 0);
@@ -3128,6 +3203,11 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
   const lider = dados.length > 0 && dados[0].vendas > 0 ? dados[0] : null;
   const mediaPorVendedor = dados.length > 0 ? totalVendas / dados.length : 0;
   const mesLabel = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const diaLabel = new Date(dia + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+  const porLabel = periodo === "mes" ? "mês" : "dia";
+  const vendasDetalhe = detalhe
+    ? vendasPeriodo.filter((v) => v.vendedor === detalhe.nome).sort((x, y) => (y.quando > x.quando ? 1 : -1))
+    : [];
 
   return (
     <div style={{ paddingTop: 18 }}>
@@ -3155,8 +3235,43 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
           <div>
           {/* Quadro principal: número grande do mês + as duas barras de fechamento */}
           <div style={painelHeroStyle}>
-            <div style={painelEyebrowStyle}>Resumo do mês</div>
-            <div style={{ fontSize: 14, color: "var(--ink)", marginTop: 14 }}>Vendido no mês</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <div style={painelEyebrowStyle}>Resumo do {porLabel}</div>
+              <div style={{ display: "inline-flex", border: "1px solid var(--line-strong)", borderRadius: 999, overflow: "hidden" }}>
+                {[["mes", "Mês"], ["dia", "Dia"]].map(([k, l]) => (
+                  <button
+                    key={k}
+                    onClick={() => setPeriodo(k)}
+                    style={{
+                      border: "none",
+                      padding: "5px 14px",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      background: periodo === k ? "var(--accent)" : "transparent",
+                      color: periodo === k ? "#2B140A" : "var(--ink-soft)",
+                    }}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {periodo === "dia" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                <input
+                  type="date"
+                  value={dia}
+                  max={hojeISO()}
+                  onChange={(e) => e.target.value && setDia(e.target.value)}
+                  style={{ ...inputStyle(), width: "auto", padding: "6px 8px", fontSize: 13 }}
+                />
+                {dia !== hojeISO() && (
+                  <button onClick={() => setDia(hojeISO())} style={ghostBtnStyle}>Hoje</button>
+                )}
+                <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{diaLabel}</span>
+              </div>
+            )}
+            <div style={{ fontSize: 14, color: "var(--ink)", marginTop: 14 }}>Vendido no {porLabel}</div>
             <div
               style={{
                 fontFamily: "var(--display)",
@@ -3173,10 +3288,10 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
             <div style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 18 }}>
               {totalPerdido > 0 ? (
                 <>
-                  <strong style={{ color: "var(--locked)", fontWeight: 600 }}>{fmtValor(totalPerdido)}</strong> em orçamentos perdidos neste mês
+                  <strong style={{ color: "var(--locked)", fontWeight: 600 }}>{fmtValor(totalPerdido)}</strong> em orçamentos perdidos {periodo === "mes" ? "neste mês" : "neste dia"}
                 </>
               ) : (
-                "Nenhum orçamento perdido neste mês"
+                `Nenhum orçamento perdido ${periodo === "mes" ? "neste mês" : "neste dia"}`
               )}
             </div>
 
@@ -3210,7 +3325,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
             <PainelMiniCard Icon={UsersIcon} titulo="Vendedores ativos" valor={String(dados.length)} />
             <PainelMiniCard
               Icon={Trophy}
-              titulo="Líder do mês"
+              titulo={`Líder do ${porLabel}`}
               valor={lider ? lider.usuario.nome : "—"}
               detalhe={lider ? fmtValor(lider.vendas) : undefined}
             />
@@ -3222,7 +3337,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
           {/* Ranking de cada vendedor */}
           <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
             <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
-              <div style={painelEyebrowStyle}>Ranking do mês</div>
+              <div style={painelEyebrowStyle}>Ranking do {porLabel}</div>
             </div>
             {dados.length === 0 ? (
               <div style={{ ...emptyStateStyle, margin: 14 }}>Nenhum vendedor/gestor cadastrado ainda.</div>
@@ -3230,9 +3345,12 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
               dados.map(({ usuario, vendas, perdido }, i) => (
                 <div
                   key={usuario.id}
+                  onClick={() => setDetalhe(usuario)}
+                  title="Ver vendas"
                   style={{
                     padding: "14px 16px",
                     borderTop: i === 0 ? "none" : "1px solid var(--line)",
+                    cursor: "pointer",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, minWidth: 0 }}>
@@ -3293,6 +3411,33 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
           </div>
           </div>
         </>
+      )}
+
+      {detalhe && (
+        <FolhaInferior rotulo={periodo === "mes" ? mesLabel : diaLabel} titulo={`Vendas de ${detalhe.nome}`} onClose={() => setDetalhe(null)}>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12 }}>
+            {vendasDetalhe.length} {vendasDetalhe.length === 1 ? "peça vendida" : "peças vendidas"} · total{" "}
+            <b style={{ color: "var(--success)" }}>{fmtValor(vendasDetalhe.reduce((x, v) => x + v.valor, 0))}</b>
+          </div>
+          {vendasDetalhe.length === 0 ? (
+            <div style={emptyStateStyle}>Nenhuma venda {periodo === "mes" ? "neste mês" : "neste dia"}.</div>
+          ) : (
+            vendasDetalhe.map((v, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "10px 0", borderTop: i === 0 ? "none" : "1px solid var(--line)" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{v.cliente}</div>
+                  <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+                    {pedidoLabel(v.pedidoNumero)} · {v.ambiente} · <span style={{ fontFamily: "var(--mono)" }}>{v.codigo}</span>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
+                    {new Date(v.quando.length === 10 ? v.quando + "T12:00:00" : v.quando).toLocaleDateString("pt-BR")}
+                  </div>
+                </div>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 14, fontWeight: 600, flexShrink: 0 }}>{fmtValor(v.valor)}</div>
+              </div>
+            ))
+          )}
+        </FolhaInferior>
       )}
     </div>
   );
@@ -4384,7 +4529,7 @@ function AgendarForm({ index = [], eventos = [], papel, nome, pedidoPreset, data
    CLIENTES — só Gestor/Gestor Master. Lista com busca por CPF,
    telefone ou nome; cadastro automático ao criar pedido, ou manual.
    ============================================================ */
-function ClientesScreen({ usuarios, onBack }) {
+function ClientesScreen({ usuarios, index = [], onAbrirPedido, onBack }) {
   const [clientes, setClientes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
@@ -4485,6 +4630,8 @@ function ClientesScreen({ usuarios, onBack }) {
           cliente={editando}
           todos={clientes}
           usuarios={usuarios}
+          index={index}
+          onAbrirPedido={onAbrirPedido}
           onClose={() => setEditando(null)}
           onSaved={async () => {
             setEditando(null);
@@ -4498,17 +4645,82 @@ function ClientesScreen({ usuarios, onBack }) {
 
 /* Pop-up do cliente: sobe do fundo da página, centralizado na horizontal,
    até quase o topo, com cantos arredondados (mesmo jeito do menu do usuário). */
-function ClienteSheet({ cliente, todos, usuarios, onClose, onSaved }) {
+function ClienteSheet({ cliente, todos, usuarios, index = [], onAbrirPedido, onClose, onSaved }) {
+  const existente = !!cliente.id;
+  // Pedidos ligados ao cliente: mesmo CPF ou mesmo telefone.
+  const digTel = (cliente.telefone || "").replace(/\D/g, "");
+  const pedidosDoCliente = existente
+    ? index
+        .filter(
+          (p) =>
+            (cliente.cpf && p.cpf === cliente.cpf) ||
+            (digTel && (p.telefone || "").replace(/\D/g, "") === digTel)
+        )
+        .sort((a, b) => b.numero - a.numero)
+    : [];
   return (
-    <FolhaInferior rotulo={cliente.id ? "Cliente" : "Cadastro"} titulo={cliente.id ? cliente.nome : "Novo cliente"} onClose={onClose}>
-      <ClienteForm cliente={cliente} todos={todos} usuarios={usuarios} onCancel={onClose} onSaved={onSaved} />
+    <FolhaInferior rotulo={existente ? "Cliente" : "Cadastro"} titulo={existente ? cliente.nome : "Novo cliente"} onClose={onClose} largura={existente ? 980 : 640}>
+      <style>{`
+        .cli-split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+        @media (max-width: 760px) { .cli-split { grid-template-columns: 1fr; } }
+      `}</style>
+      {existente ? (
+        <div className="cli-split">
+          <div>
+            <div style={{ ...labelStyle, fontWeight: 600, marginBottom: 10 }}>Dados do cliente</div>
+            <ClienteForm cliente={cliente} todos={todos} usuarios={usuarios} onCancel={onClose} onSaved={onSaved} />
+          </div>
+          <div>
+            <div style={{ ...labelStyle, fontWeight: 600, marginBottom: 10 }}>Pedidos deste cliente ({pedidosDoCliente.length})</div>
+            {pedidosDoCliente.length === 0 ? (
+              <div style={emptyStateStyle}>Nenhum pedido ligado a este cliente.</div>
+            ) : (
+              pedidosDoCliente.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => onAbrirPedido && onAbrirPedido(p.id)}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    color: "var(--ink)",
+                    background: "var(--surface)",
+                    border: "1px solid var(--line)",
+                    borderLeft: `4px solid ${statusPedidoColor(p.status)}`,
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    marginBottom: 8,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span>
+                    <span style={{ fontFamily: "var(--mono)", fontWeight: 700, color: "var(--accent)" }}>{pedidoLabel(p.numero)}</span>
+                    <span style={{ ...statusBadgeStyle(statusPedidoColor(p.status)), fontSize: 11, marginLeft: 8 }}>{p.status}</span>
+                    <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 3 }}>
+                      {p.vendedor || "—"} · {p.criadoEm ? new Date(p.criadoEm).toLocaleDateString("pt-BR") : ""}
+                    </div>
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    {p.valorTotal > 0 && <span style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{fmtValor(p.valorTotal)}</span>}
+                    <ChevronRight size={16} color="var(--ink-soft)" />
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      ) : (
+        <ClienteForm cliente={cliente} todos={todos} usuarios={usuarios} onCancel={onClose} onSaved={onSaved} />
+      )}
     </FolhaInferior>
   );
 }
 
 /* Pop-up padrão do sistema: sobe do fundo da página, centralizado na horizontal,
    até quase o topo, com cantos arredondados (mesmo jeito do menu do usuário). */
-function FolhaInferior({ rotulo, titulo, onClose, children }) {
+function FolhaInferior({ rotulo, titulo, onClose, children, largura = 640 }) {
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "var(--overlay)", zIndex: 160, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
@@ -4520,7 +4732,7 @@ function FolhaInferior({ rotulo, titulo, onClose, children }) {
         style={{
           background: "var(--surface)",
           width: "100%",
-          maxWidth: 640,
+          maxWidth: largura,
           height: "calc(100% - 28px)",
           maxHeight: "calc(100% - 28px)",
           borderRadius: "22px 22px 0 0",
@@ -4934,6 +5146,34 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
 
   const canSave = cliente.trim().length > 0 && cpfValido(cpf);
 
+  // Puxar cliente já cadastrado por CPF ou telefone (opcional).
+  const [termoBusca, setTermoBusca] = useState("");
+  const [achados, setAchados] = useState(null); // null = ainda não buscou
+  useEffect(() => {
+    const digitos = termoBusca.replace(/\D/g, "");
+    if (digitos.length < 8) {
+      setAchados(null);
+      return;
+    }
+    let cancelado = false;
+    const t = setTimeout(async () => {
+      const r = await buscarClientePorDocumento(digitos);
+      if (!cancelado) setAchados(r);
+    }, 350);
+    return () => {
+      cancelado = true;
+      clearTimeout(t);
+    };
+  }, [termoBusca]);
+  const usarCliente = (c) => {
+    setCliente(c.nome || "");
+    setCpf(formatCPF(c.cpf || ""));
+    setTelefone(formatTelefone(c.telefone || ""));
+    setEndereco(c.endereco || "");
+    setTermoBusca("");
+    setAchados(null);
+  };
+
   const handleCreate = async () => {
     if (!canSave || saving) return;
     setSaving(true);
@@ -4958,6 +5198,8 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
       id: pedido.id,
       numero: pedido.numero,
       cliente: pedido.cliente,
+      cpf: pedido.cpf,
+      telefone: pedido.telefone,
       criadoEm: pedido.criadoEm,
       status: pedido.status,
       vendedor: pedido.vendedor,
@@ -4969,6 +5211,29 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
 
   return (
     <div>
+      <div style={{ background: "var(--accent-soft)", border: "1px solid var(--line)", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+        <label style={{ ...labelStyle, marginTop: 0 }}>Cliente já cadastrado? Buscar por CPF ou telefone</label>
+        <input
+          value={termoBusca}
+          onChange={(e) => setTermoBusca(e.target.value)}
+          style={inputStyle()}
+          inputMode="numeric"
+          placeholder="Digite o CPF ou o telefone"
+        />
+        {achados && achados.length === 0 && (
+          <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 6 }}>Nenhum cliente encontrado — preencha abaixo para cadastrar.</div>
+        )}
+        {achados && achados.map((c, i) => (
+          <button
+            key={i}
+            onClick={() => usarCliente(c)}
+            style={{ ...ghostBtnStyle, width: "100%", justifyContent: "space-between", marginTop: 6, textAlign: "left" }}
+          >
+            <span style={{ fontWeight: 600 }}>{c.nome}</span>
+            <span style={{ fontSize: 12, color: "var(--ink-soft)", fontFamily: "var(--mono)" }}>{formatTelefone(c.telefone) || formatCPF(c.cpf)}</span>
+          </button>
+        ))}
+      </div>
       <label style={labelStyle}>Nome do cliente</label>
       <input value={cliente} onChange={(e) => setCliente(e.target.value)} style={inputStyle()} placeholder="Ex.: João da Silva" />
       <label style={{ ...labelStyle, marginTop: 10 }}>CPF</label>
@@ -6564,7 +6829,7 @@ function CaracteristicasProducao({ peca, orc, calc }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={cardStyle}>
-        <InfoRow label="Largura x Altura" value={`${fmtMedida(peca.largura) || "—"} x ${fmtMedida(peca.altura) || "—"}`} mono />
+        <InfoRow label="Medida do vão (L x A)" value={`${fmtMedida(peca.largura) || "—"} x ${fmtMedida(peca.altura) || "—"}`} mono />
         {corPeca && <InfoRow label="Cor" value={corPeca} />}
         <InfoRow label="Abertura" value={aberturaLabel || "—"} />
       </div>
@@ -6589,10 +6854,15 @@ function CaracteristicasProducao({ peca, orc, calc }) {
         const deslizantesQtd = cc.deslizantes?.quantidade ?? null;
         const ilhosArgolasQtd = cc.ilhosOuArgolas?.quantidade ?? null;
         const ganchosQtd = cc.ganchos?.quantidade ?? null;
+        const confConf = calcularConfeccaoCamada(peca, orc.abertura, acabamentoEfetivo);
+        const confTxt = textoConfeccao(confConf);
         return (
           <div key={chave} style={{ ...cardStyle, padding: "10px 12px" }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{CAMADA_LABEL[chave]}</div>
             <InfoRow label="Tecido" value={cc.tecido || "—"} />
+            <InfoRow label="Número de Folhas" value={confTxt.folhas} mono />
+            <InfoRow label="Largura x Altura" value={confTxt.medida} mono />
+            {confTxt.total && confConf.folhas > 1 && <InfoRow label="Largura total" value={confTxt.total} mono />}
             {cc.mesclada ? (
               <>
                 {/* Só a parte de cima é costurada junto — a barra do Fundo
@@ -6639,7 +6909,7 @@ function CaracteristicasProducao({ peca, orc, calc }) {
                   label="Número de Deslizantes"
                   value={deslizantesQtd != null ? (deslizantesQtd > 0 ? String(deslizantesQtd) : "⚠ 0 — verificar medida") : "—"}
                 />
-                {deslizantesQtd != null && <InfoRow label="Cordão" value={String(deslizantesQtd)} />}
+                {acabamentoEfetivo === "Wave" && confConf.folhas && <InfoRow label="Cordão" value={`${confConf.folhas} (1 por folha)`} />}
                 <InfoRow label="Tamanho da Barra" value={cc.alturaBarra != null ? `${cc.alturaBarra} cm` : "—"} />
               </>
             )}
@@ -6694,7 +6964,13 @@ function gerarHtmlFichaProducao(pedido, ambiente, peca, orc, calc) {
       const ilhosArgolasQtd = cc.ilhosOuArgolas?.quantidade ?? null;
       const ganchosQtd = cc.ganchos?.quantidade ?? null;
 
-      const linhas = [["Tecido", escapeHtml(cc.tecido || "—")]];
+      const confTxt = textoConfeccao(calcularConfeccaoCamada(peca, orc.abertura, acabamentoEfetivo));
+      const linhas = [
+        ["Tecido", escapeHtml(cc.tecido || "—")],
+        ["Número de Folhas", escapeHtml(confTxt.folhas)],
+        ["Largura x Altura", escapeHtml(confTxt.medida)],
+      ];
+      if (confTxt.total && Number(confTxt.folhas) > 1) linhas.push(["Largura total", escapeHtml(confTxt.total)]);
       if (cc.mesclada) {
         linhas.push(["Tamanho da Barra", cc.alturaBarra != null ? `${cc.alturaBarra} cm` : "—"]);
       } else if (ehVarao) {
@@ -6721,7 +6997,7 @@ function gerarHtmlFichaProducao(pedido, ambiente, peca, orc, calc) {
           "Número de Deslizantes",
           deslizantesQtd != null ? (deslizantesQtd > 0 ? String(deslizantesQtd) : "0 — verificar medida") : "—",
         ]);
-        if (deslizantesQtd != null) linhas.push(["Cordão", String(deslizantesQtd)]);
+        if (acabamentoEfetivo === "Wave" && confTxt.folhas !== "—") linhas.push(["Cordão", `${confTxt.folhas} (1 por folha)`]);
         linhas.push(["Tamanho da Barra", cc.alturaBarra != null ? `${cc.alturaBarra} cm` : "—"]);
       }
       const linhasHtml = linhas
@@ -6788,7 +7064,7 @@ function gerarHtmlFichaProducao(pedido, ambiente, peca, orc, calc) {
     <div class="row"><span class="label">Cliente</span><span class="value">${escapeHtml(pedido.cliente)}</span></div>
     <div class="row"><span class="label">Ambiente</span><span class="value">${escapeHtml(ambiente.nome)}</span></div>
     <div class="row"><span class="label">Peça</span><span class="value">${escapeHtml(peca.tipo)}</span></div>
-    <div class="row"><span class="label">Largura x Altura</span><span class="value">${escapeHtml(fmtMedida(peca.largura) || "—")} x ${escapeHtml(fmtMedida(peca.altura) || "—")}</span></div>
+    <div class="row"><span class="label">Medida do vão (L x A)</span><span class="value">${escapeHtml(fmtMedida(peca.largura) || "—")} x ${escapeHtml(fmtMedida(peca.altura) || "—")}</span></div>
     ${corHtml}
     ${aberturaHtml}
   </div>
