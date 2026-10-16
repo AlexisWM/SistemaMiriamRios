@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   loadIndex,
   saveIndex,
@@ -3229,7 +3230,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
         <div>
           <h1 style={{ fontSize: 34, lineHeight: 1.05, margin: 0 }}>Painel de vendas</h1>
           <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #E8A870, #B96C3F)", margin: "8px 0 6px" }} />
-          <div style={{ fontSize: 13, color: "var(--ink-soft)", textTransform: "capitalize" }}>{mesLabel}</div>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1)}</div>
         </div>
         <span style={painelPillStyle}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)" }} />
@@ -3455,6 +3456,10 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
       )}
     </div>
   );
+}
+
+function cap1(t) {
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 }
 
 function fmtPct(n) {
@@ -3999,8 +4004,8 @@ function CalendarScreen({ eventos, index, busca, papel, nome, onCriarEvento, onE
             <button onClick={() => setMesRef(addMonths(mesRef, -1))} style={smallActionStyle}>
               <ChevronLeft size={14} />
             </button>
-            <div style={{ fontSize: 14, fontWeight: 600, textTransform: "capitalize" }}>
-              {mesRef.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+            <div style={{ fontSize: 14, fontWeight: 600 }}>
+              {cap1(mesRef.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }))}
             </div>
             <button onClick={() => setMesRef(addMonths(mesRef, 1))} style={smallActionStyle}>
               <ChevronRight size={14} />
@@ -4068,13 +4073,13 @@ function CalendarScreen({ eventos, index, busca, papel, nome, onCriarEvento, onE
 
           <div className="cal-agenda">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, textTransform: "capitalize" }}>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>
                 {diaSelecionado === hojeISO ? "Hoje · " : ""}
-                {new Date(diaSelecionado + "T00:00:00").toLocaleDateString("pt-BR", {
+                {cap1(new Date(diaSelecionado + "T00:00:00").toLocaleDateString("pt-BR", {
                   weekday: "long",
                   day: "2-digit",
                   month: "long",
-                })}
+                }))}
               </div>
               {canAgendar(papel) && !showForm && (
                 <button onClick={() => setShowForm(true)} style={ghostBtnStyle}>
@@ -4597,7 +4602,7 @@ function ClientesScreen({ usuarios, index = [], onAbrirPedido, onBack }) {
         <input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por CPF, telefone, nome ou endereço"
+          placeholder="Buscar CPF, telefone, nome…"
           style={{ ...inputStyle(), paddingLeft: 36 }}
         />
       </div>
@@ -4735,7 +4740,7 @@ function ClienteSheet({ cliente, todos, usuarios, index = [], onAbrirPedido, onC
 /* Pop-up padrão do sistema: sobe do fundo da página, centralizado na horizontal,
    até quase o topo, com cantos arredondados (mesmo jeito do menu do usuário). */
 function FolhaInferior({ rotulo, titulo, onClose, children, largura = 640 }) {
-  return (
+  return createPortal(
     <div
       style={{ position: "fixed", inset: 0, background: "var(--overlay)", zIndex: 160, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
       onClick={onClose}
@@ -4769,7 +4774,8 @@ function FolhaInferior({ rotulo, titulo, onClose, children, largura = 640 }) {
         </div>
         <div style={{ overflowY: "auto", padding: 20, flex: 1 }}>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -6179,7 +6185,7 @@ function PecaRow({ peca, papel, onOpen }) {
    CONFIRMAÇÃO GENÉRICA (usada para excluir peça, etc.)
    ============================================================ */
 function ConfirmDialog({ title, message, confirmLabel = "Confirmar", onConfirm, onCancel }) {
-  return (
+  return createPortal(
     <div
       style={{
         position: "fixed",
@@ -6228,7 +6234,8 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", onConfirm, 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -7325,7 +7332,7 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
                     borderRadius: 8,
                     border: selecionada ? "2px solid var(--accent)" : "1px solid var(--line)",
                     background: selecionada ? "var(--accent-soft)" : "transparent",
-                    color: selecionada ? "var(--accent-ink)" : "var(--ink)",
+                    color: selecionada ? "var(--accent)" : "var(--ink)",
                     cursor: "pointer",
                     fontSize: 11,
                     textAlign: "center",
@@ -7531,7 +7538,7 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
               value={orc.maoDeObra?.instalacao}
               onCommit={(v) => setMaoDeObra({ instalacao: v })}
               sufixo="R$"
-              placeholder="0 (sem instalação)"
+              placeholder="0"
             />
           </div>
         </div>
@@ -8032,7 +8039,9 @@ function MedicaoWizard({ peca, d, onClose }) {
   ];
   const podeSalvar = digitsToNum(d.larguraRaw) != null && digitsToNum(d.alturaRaw) != null;
 
-  return (
+  // Portal: os cartões usam blur (backdrop-filter), que prenderia um
+  // elemento "fixed" dentro do cartão em vez de cobrir a tela toda.
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 180, background: "var(--bg)", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
       <style>{`
         .wiz-input { font-size: 52px !important; font-family: var(--mono); text-align: center; padding: 18px 12px !important; border-width: 2px !important; }
@@ -8119,7 +8128,8 @@ function MedicaoWizard({ peca, d, onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
