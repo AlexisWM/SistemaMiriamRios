@@ -1417,14 +1417,22 @@ function hojeISO() {
 }
 /* Todas as vendas confirmadas (peça a peça) dos pedidos dos vendedores
    informados — base do Painel de vendas (mês ou dia) e do detalhamento. */
-async function coletarVendas(nomes, index) {
+async function coletarVendas(index) {
   const lista = [];
-  for (const p of index.filter((x) => nomes.includes(x.vendedor))) {
+  const cortinas = []; // cortinas fabricadas / instaladas (com a data de cada etapa)
+  for (const p of index) {
     const pedido = await loadPedido(p.id);
     if (!pedido) continue;
     pedido.ambientes.forEach((a) =>
       a.pecas.forEach((peca) => {
-        if (peca.valor && peca.vendaFeitaEm) {
+        if (peca.produto === "Cortina" && (peca.disponivelEm || peca.instaladoEm || peca.statusProducao === "Disponível para instalar")) {
+          cortinas.push({
+            fabricadaDia: peca.disponivelEm ? dataLocalISO(peca.disponivelEm) : null,
+            instaladaDia: peca.instaladoEm ? dataLocalISO(peca.instaladoEm) : null,
+            aguardando: peca.statusProducao === "Disponível para instalar",
+          });
+        }
+        if (peca.valor && peca.vendaFeitaEm && p.vendedor) {
           lista.push({
             vendedor: p.vendedor,
             pedidoNumero: pedido.numero,
@@ -1439,7 +1447,7 @@ async function coletarVendas(nomes, index) {
       })
     );
   }
-  return lista;
+  return { vendas: lista, cortinas };
 }
 
 /* Quanto foi perdido no mês atual: soma o valor total dos pedidos
@@ -3165,6 +3173,7 @@ function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios, on
 function PainelGestorScreen({ usuarios, index, onBack }) {
   const [carregando, setCarregando] = useState(true);
   const [vendas, setVendas] = useState([]);
+  const [cortinas, setCortinas] = useState([]);
   const [periodo, setPeriodo] = useState("mes"); // "mes" | "dia"
   const [dia, setDia] = useState(hojeISO());
   const [detalhe, setDetalhe] = useState(false); // detalhamento de todas as vendas do ranking
@@ -3175,9 +3184,10 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
     let cancelado = false;
     (async () => {
       setCarregando(true);
-      const lista = await coletarVendas([...new Set(index.map((p) => p.vendedor).filter(Boolean))], index);
+      const r = await coletarVendas(index);
       if (!cancelado) {
-        setVendas(lista);
+        setVendas(r.vendas);
+        setCortinas(r.cortinas);
         setCarregando(false);
       }
     })();
@@ -3190,6 +3200,9 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
   const anoMes = mesAtualISO();
   const noPeriodo = (iso) => (periodo === "mes" ? iso.slice(0, 7) === anoMes : iso === dia);
   const vendasPeriodo = vendas.filter((v) => noPeriodo(v.dia));
+  const cortinasFabricadas = cortinas.filter((c) => c.fabricadaDia && noPeriodo(c.fabricadaDia)).length;
+  const cortinasInstaladas = cortinas.filter((c) => c.instaladaDia && noPeriodo(c.instaladaDia)).length;
+  const cortinasAguardando = cortinas.filter((c) => c.aguardando).length;
   const perdidoDe = (nome) =>
     index
       .filter((p) => (nome == null || p.vendedor === nome) && p.status === "Orçamento Perdido" && p.perdidoEm && noPeriodo(dataLocalISO(p.perdidoEm)))
@@ -3207,7 +3220,10 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
   const totalVendas = vendasPeriodo.reduce((soma, v) => soma + v.valor, 0);
   const totalPerdido = perdidoDe(null);
   const totalGeral = totalVendas + totalPerdido;
-  const taxaFechamento = totalGeral > 0 ? (totalVendas / totalGeral) * 100 : 0;
+  // Taxa de fechamento: pedidos fechados ÷ pedidos criados no período.
+  const pedidosCriados = index.filter((p) => p.criadoEm && noPeriodo(dataLocalISO(p.criadoEm))).length;
+  const pedidosFechados = new Set(vendasPeriodo.map((v) => v.pedidoNumero)).size;
+  const taxaFechamento = pedidosCriados > 0 ? (pedidosFechados / pedidosCriados) * 100 : 0;
   const pctPerdido = totalGeral > 0 ? (totalPerdido / totalGeral) * 100 : 0;
   const maxVendas = dados.reduce((m, d) => Math.max(m, d.vendas), 0);
   // Fatias da rosca: faturamento (todas as vendas do período) por vendedor.
@@ -3328,6 +3344,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
                 titulo="Taxa de fechamento"
                 valor={fmtPct(taxaFechamento)}
                 pct={taxaFechamento}
+                detalhe={`${pedidosFechados} fechados de ${pedidosCriados} criados`}
                 cor="var(--success)"
               />
               <PainelBarraCard
@@ -3344,6 +3361,17 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
           <div style={{ ...painelHeroStyle, margin: "12px 0 16px" }}>
             <div style={painelEyebrowStyle}>Faturamento por vendedor</div>
             <PainelRosca fatias={fatias} total={totalVendas} />
+          </div>
+
+          <div style={{ ...painelHeroStyle, margin: "0 0 16px" }}>
+            <div style={painelEyebrowStyle}>Cortinas no {porLabel}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}>
+              <PainelMiniCard Icon={Factory} titulo="Fabricadas" valor={String(cortinasFabricadas)} />
+              <PainelMiniCard Icon={Truck} titulo="Instaladas" valor={String(cortinasInstaladas)} />
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 10 }}>
+              {cortinasAguardando} {cortinasAguardando === 1 ? "cortina fabricada aguarda" : "cortinas fabricadas aguardam"} instalação.
+            </div>
           </div>
 
           </div>
@@ -3526,14 +3554,15 @@ const CORES_ROSCA = ["#E8A870", "#6FB1FF", "#7BD3A0", "#C79BFF", "#F0C75E", "#FF
 /* Gráfico de rosca (pizza vazada): o círculo todo é 100% do faturamento e
    cada fatia é a parte de um vendedor. */
 function PainelRosca({ fatias, total }) {
-  const R = 64;
+  const R = 62;
   const C = 2 * Math.PI * R;
   let acumulado = 0;
+  const rotulos = []; // % no meio de cada fatia
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 14 }}>
       <div style={{ position: "relative", width: 176, height: 176, flexShrink: 0, margin: "0 auto" }}>
         <svg width="176" height="176" viewBox="0 0 176 176" style={{ transform: "rotate(-90deg)" }}>
-          <circle cx="88" cy="88" r={R} fill="none" stroke="var(--track)" strokeWidth="20" />
+          <circle cx="88" cy="88" r={R} fill="none" stroke="var(--track)" strokeWidth="28" />
           {total > 0 &&
             fatias.map((f, i) => {
               const frac = f.valor / total;
@@ -3546,15 +3575,37 @@ function PainelRosca({ fatias, total }) {
                   r={R}
                   fill="none"
                   stroke={CORES_ROSCA[i % CORES_ROSCA.length]}
-                  strokeWidth="20"
+                  strokeWidth="28"
                   strokeDasharray={`${Math.max(0, comp - 1.5)} ${C - Math.max(0, comp - 1.5)}`}
                   strokeDashoffset={-acumulado}
                 />
               );
+              if (frac >= 0.04) {
+                const ang = ((acumulado + comp / 2) / C) * 2 * Math.PI - Math.PI / 2;
+                rotulos.push({ nome: f.nome, pct: frac * 100, x: 88 + R * Math.cos(ang), y: 88 + R * Math.sin(ang) });
+              }
               acumulado += comp;
               return el;
             })}
         </svg>
+        {rotulos.map((r) => (
+          <div
+            key={r.nome}
+            style={{
+              position: "absolute",
+              left: r.x,
+              top: r.y,
+              transform: "translate(-50%, -50%)",
+              fontSize: 11.5,
+              fontWeight: 800,
+              color: "#14110E",
+              fontFamily: "var(--mono)",
+              pointerEvents: "none",
+            }}
+          >
+            {fmtPct(r.pct)}
+          </div>
+        ))}
         <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
           <div style={{ fontFamily: "var(--display)", fontSize: 24, fontWeight: 700, lineHeight: 1 }}>{total > 0 ? "100%" : "—"}</div>
           <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 3 }}>faturamento</div>
@@ -3568,7 +3619,6 @@ function PainelRosca({ fatias, total }) {
             <div key={f.nome} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
               <span style={{ width: 10, height: 10, borderRadius: 3, background: CORES_ROSCA[i % CORES_ROSCA.length], flexShrink: 0 }} />
               <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.nome}</span>
-              <span style={{ fontFamily: "var(--mono)", fontWeight: 700 }}>{fmtPct((f.valor / total) * 100)}</span>
               <span style={{ fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-soft)", minWidth: 78, textAlign: "right" }}>{fmtValor(f.valor)}</span>
             </div>
           ))
@@ -3596,7 +3646,7 @@ function PainelBarra({ pct, cor }) {
 }
 
 /* Quadro com ícone, título, valor à direita e barra embaixo. */
-function PainelBarraCard({ Icon, titulo, valor, pct, cor }) {
+function PainelBarraCard({ Icon, titulo, valor, pct, cor, detalhe }) {
   return (
     <div
       style={{
@@ -3622,6 +3672,7 @@ function PainelBarraCard({ Icon, titulo, valor, pct, cor }) {
         </span>
       </div>
       <PainelBarra pct={pct} cor={cor} />
+      {detalhe && <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8 }}>{detalhe}</div>}
     </div>
   );
 }
