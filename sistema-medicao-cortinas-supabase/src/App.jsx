@@ -246,6 +246,13 @@ function textoConfeccao(conf) {
     total: conf.total != null ? `${fmtMedida(conf.total)} m` : null,
   };
 }
+// Cordão do Wave: 1 por folha, cada um com a metragem da sua folha (o
+// material precisa ser separado). Ex.: "2x 1,40 m".
+function textoCordao(cc, folhas) {
+  const metros = cc.cordao?.metros;
+  if (!folhas || metros == null) return `${folhas || "—"}x`;
+  return `${folhas}x ${fmtMedida(round2(metros / folhas))} m`;
+}
 const CAMADAS_CORTINA = ["fundo", "forro", "xale"];
 const CAMADA_LABEL = { fundo: "Fundo", forro: "Forro", xale: "Xale" };
 // Ordem da mais à frente pra mais atrás. Só a camada mais à frente pode
@@ -3159,7 +3166,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
   const [vendas, setVendas] = useState([]);
   const [periodo, setPeriodo] = useState("mes"); // "mes" | "dia"
   const [dia, setDia] = useState(hojeISO());
-  const [detalhe, setDetalhe] = useState(null); // usuário aberto no detalhamento
+  const [detalhe, setDetalhe] = useState(false); // detalhamento de todas as vendas do ranking
 
   const relevantes = usuarios.filter((u) => ["Vendedor", "Gestor"].includes(u.papel) && u.ativo !== false);
 
@@ -3167,7 +3174,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
     let cancelado = false;
     (async () => {
       setCarregando(true);
-      const lista = await coletarVendas(relevantes.map((u) => u.nome), index);
+      const lista = await coletarVendas([...new Set(index.map((p) => p.vendedor).filter(Boolean))], index);
       if (!cancelado) {
         setVendas(lista);
         setCarregando(false);
@@ -3184,7 +3191,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
   const vendasPeriodo = vendas.filter((v) => noPeriodo(v.dia));
   const perdidoDe = (nome) =>
     index
-      .filter((p) => p.vendedor === nome && p.status === "Orçamento Perdido" && p.perdidoEm && noPeriodo(dataLocalISO(p.perdidoEm)))
+      .filter((p) => (nome == null || p.vendedor === nome) && p.status === "Orçamento Perdido" && p.perdidoEm && noPeriodo(dataLocalISO(p.perdidoEm)))
       .reduce((soma, p) => soma + (p.valorTotal || 0), 0);
   const dados = relevantes
     .map((u) => ({
@@ -3194,8 +3201,10 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
     }))
     .sort((x, y) => y.vendas - x.vendas);
 
-  const totalVendas = dados.reduce((soma, d) => soma + d.vendas, 0);
-  const totalPerdido = dados.reduce((soma, d) => soma + d.perdido, 0);
+  // Resumo: soma TODAS as vendas (inclui Gestor Master/Administrativo).
+  // O Ranking (base de comissão) continua só com Vendedor + Gestor.
+  const totalVendas = vendasPeriodo.reduce((soma, v) => soma + v.valor, 0);
+  const totalPerdido = perdidoDe(null);
   const totalGeral = totalVendas + totalPerdido;
   const taxaFechamento = totalGeral > 0 ? (totalVendas / totalGeral) * 100 : 0;
   const pctPerdido = totalGeral > 0 ? (totalPerdido / totalGeral) * 100 : 0;
@@ -3205,9 +3214,10 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
   const mesLabel = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   const diaLabel = new Date(dia + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
   const porLabel = periodo === "mes" ? "mês" : "dia";
-  const vendasDetalhe = detalhe
-    ? vendasPeriodo.filter((v) => v.vendedor === detalhe.nome).sort((x, y) => (y.quando > x.quando ? 1 : -1))
-    : [];
+  const nomesRanking = relevantes.map((u) => u.nome);
+  const vendasDetalhe = vendasPeriodo
+    .filter((v) => nomesRanking.includes(v.vendedor))
+    .sort((x, y) => (y.quando > x.quando ? 1 : -1));
 
   return (
     <div style={{ paddingTop: 18 }}>
@@ -3336,21 +3346,24 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
 
           {/* Ranking de cada vendedor */}
           <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
-              <div style={painelEyebrowStyle}>Ranking do {porLabel}</div>
-            </div>
+            <button
+              onClick={() => setDetalhe(true)}
+              style={{ width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid var(--line)", padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", color: "var(--ink)" }}
+            >
+              <span style={painelEyebrowStyle}>Ranking do {porLabel}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--ink-soft)" }}>
+                Ver todas as vendas <ChevronRight size={15} />
+              </span>
+            </button>
             {dados.length === 0 ? (
               <div style={{ ...emptyStateStyle, margin: 14 }}>Nenhum vendedor/gestor cadastrado ainda.</div>
             ) : (
               dados.map(({ usuario, vendas, perdido }, i) => (
                 <div
                   key={usuario.id}
-                  onClick={() => setDetalhe(usuario)}
-                  title="Ver vendas"
                   style={{
                     padding: "14px 16px",
                     borderTop: i === 0 ? "none" : "1px solid var(--line)",
-                    cursor: "pointer",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, minWidth: 0 }}>
@@ -3414,7 +3427,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
       )}
 
       {detalhe && (
-        <FolhaInferior rotulo={periodo === "mes" ? mesLabel : diaLabel} titulo={`Vendas de ${detalhe.nome}`} onClose={() => setDetalhe(null)}>
+        <FolhaInferior rotulo={periodo === "mes" ? mesLabel : diaLabel} titulo={`Todas as vendas do ${porLabel}`} onClose={() => setDetalhe(false)}>
           <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 12 }}>
             {vendasDetalhe.length} {vendasDetalhe.length === 1 ? "peça vendida" : "peças vendidas"} · total{" "}
             <b style={{ color: "var(--success)" }}>{fmtValor(vendasDetalhe.reduce((x, v) => x + v.valor, 0))}</b>
@@ -3426,6 +3439,7 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
               <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "10px 0", borderTop: i === 0 ? "none" : "1px solid var(--line)" }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{v.cliente}</div>
+                  <div style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>{v.vendedor}</div>
                   <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
                     {pedidoLabel(v.pedidoNumero)} · {v.ambiente} · <span style={{ fontFamily: "var(--mono)" }}>{v.codigo}</span>
                   </div>
@@ -6909,7 +6923,7 @@ function CaracteristicasProducao({ peca, orc, calc }) {
                   label="Número de Deslizantes"
                   value={deslizantesQtd != null ? (deslizantesQtd > 0 ? String(deslizantesQtd) : "⚠ 0 — verificar medida") : "—"}
                 />
-                {acabamentoEfetivo === "Wave" && confConf.folhas && <InfoRow label="Cordão" value={`${confConf.folhas} (1 por folha)`} />}
+                {acabamentoEfetivo === "Wave" && confConf.folhas && <InfoRow label="Cordão" value={textoCordao(cc, confConf.folhas)} mono />}
                 <InfoRow label="Tamanho da Barra" value={cc.alturaBarra != null ? `${cc.alturaBarra} cm` : "—"} />
               </>
             )}
@@ -6997,7 +7011,7 @@ function gerarHtmlFichaProducao(pedido, ambiente, peca, orc, calc) {
           "Número de Deslizantes",
           deslizantesQtd != null ? (deslizantesQtd > 0 ? String(deslizantesQtd) : "0 — verificar medida") : "—",
         ]);
-        if (acabamentoEfetivo === "Wave" && confTxt.folhas !== "—") linhas.push(["Cordão", `${confTxt.folhas} (1 por folha)`]);
+        if (acabamentoEfetivo === "Wave" && confTxt.folhas !== "—") linhas.push(["Cordão", escapeHtml(textoCordao(cc, Number(confTxt.folhas)))]);
         linhas.push(["Tamanho da Barra", cc.alturaBarra != null ? `${cc.alturaBarra} cm` : "—"]);
       }
       const linhasHtml = linhas
