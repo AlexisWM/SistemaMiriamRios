@@ -67,6 +67,8 @@ import {
   Printer,
   Trophy,
   TrendingUp,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 /* ============================================================
@@ -1496,6 +1498,23 @@ function cpfValido(raw) {
   }
   return true;
 }
+/* Tema claro/escuro: guardado no aparelho (localStorage) e aplicado em <html data-tema>. */
+function useTema() {
+  const [tema, setTema] = useState(() => {
+    try {
+      return localStorage.getItem("tema-app") === "claro" ? "claro" : "escuro";
+    } catch (e) {
+      return "escuro";
+    }
+  });
+  useEffect(() => {
+    document.documentElement.setAttribute("data-tema", tema);
+    try {
+      localStorage.setItem("tema-app", tema);
+    } catch (e) {}
+  }, [tema]);
+  return [tema, setTema];
+}
 function canVerClientes(papel) {
   return papel === "Gestor" || papel === "Gestor Master";
 }
@@ -2156,6 +2175,7 @@ function Shell({
   rota,
 }) {
   const [railOpen, setRailOpen] = useState(false);
+  const [tema, setTema] = useTema();
   const corAccent = COR_MARCA;
   const corAccentSoft = "rgba(216,149,95,0.16)";
   const corAccentInk = "#2B140A";
@@ -2196,7 +2216,61 @@ function Shell({
           --sans: 'Barlow', system-ui, sans-serif;
           --shadow-sm: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(170,205,255,0.07);
           --shadow-md: 0 14px 36px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4);
+          --card-bg: linear-gradient(160deg, rgba(26,40,66,0.82) 0%, rgba(14,22,38,0.88) 100%);
+          --header-bg: rgba(9,14,26,0.72);
+          --tabs-bg: rgba(9,14,26,0.6);
+          --overlay: rgba(3,6,14,0.72);
+          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(70,160,255,0.22), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(216,149,95,0.13), transparent 65%), linear-gradient(160deg, #15233C 0%, #0D1627 100%);
+          --track: rgba(160,200,255,0.10);
+          --panel-bg: rgba(5,10,20,0.45);
+          --placeholder: #8FA2C2;
+          --row-hover: rgba(120,170,255,0.10);
         }
+        /* TEMA CLARO — ativado pelo botão sol/lua no cabeçalho. */
+        :root[data-tema="claro"] {
+          color-scheme: light;
+          --bg: #F2F5FA;
+          --surface: #FFFFFF;
+          --field: #FFFFFF;
+          --surface-hi: #E7EDF6;
+          --ink: #0F1A2E;
+          --ink-soft: #46587A;
+          --line: rgba(30,55,100,0.22);
+          --line-strong: rgba(30,55,100,0.50);
+          --info: #1F6FD1;
+          --locked: #C0402B;
+          --locked-soft: rgba(192,64,43,0.12);
+          --success: #1C8449;
+          --success-soft: rgba(28,132,73,0.12);
+          --amber: #94650A;
+          --amber-soft: rgba(148,101,10,0.13);
+          --orange: #C0560A;
+          --orange-soft: rgba(192,86,10,0.12);
+          --teal: #0D7480;
+          --teal-soft: rgba(13,116,128,0.12);
+          --rose: #B2345A;
+          --rose-soft: rgba(178,52,90,0.12);
+          --glow: #1F7FCC;
+          --shadow-sm: 0 1px 2px rgba(20,40,80,0.10), 0 0 0 1px rgba(20,40,80,0.02);
+          --shadow-md: 0 14px 36px rgba(20,40,80,0.18), 0 2px 8px rgba(20,40,80,0.10);
+          --card-bg: linear-gradient(160deg, #FFFFFF 0%, #F6F9FE 100%);
+          --header-bg: rgba(255,255,255,0.86);
+          --tabs-bg: rgba(255,255,255,0.8);
+          --overlay: rgba(15,26,46,0.45);
+          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(70,160,255,0.18), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(216,149,95,0.16), transparent 65%), linear-gradient(160deg, #FFFFFF 0%, #EAF1FB 100%);
+          --track: rgba(30,55,100,0.12);
+          --panel-bg: rgba(30,55,100,0.05);
+          --placeholder: #6A7B99;
+          --row-hover: rgba(31,111,209,0.08);
+        }
+        :root[data-tema="claro"] body {
+          background-image:
+            radial-gradient(900px 560px at 90% -10%, rgba(70,150,240,0.16), transparent 62%),
+            radial-gradient(780px 520px at -10% 110%, rgba(216,149,95,0.16), transparent 60%),
+            linear-gradient(180deg, #F7F9FD 0%, #EAEFF7 100%);
+          background-size: auto, auto, auto;
+        }
+        :root[data-tema="claro"] ::selection { background: rgba(31,111,209,0.25); }
         * { box-sizing: border-box; }
         html, body, #root { height: 100%; margin: 0; }
         body {
@@ -2313,7 +2387,7 @@ function Shell({
         .rail-user-mobile,
         .header-hamburger-mobile { display: none !important; }
         /* Campos: placeholder legível e foco bem visível. */
-        input::placeholder, textarea::placeholder { color: #8FA2C2; opacity: 1; }
+        input::placeholder, textarea::placeholder { color: var(--placeholder); opacity: 1; }
         input:focus, select:focus, textarea:focus {
           outline: none;
           border-color: var(--glow) !important;
@@ -2338,7 +2412,7 @@ function Shell({
           .header-hamburger-mobile { display: none !important; }
           .mobile-tabs {
             display: flex; flex-shrink: 0; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
-            padding: 8px 12px 6px; background: rgba(9,14,26,0.6);
+            padding: 8px 12px 6px; background: var(--tabs-bg);
             border-bottom: 1px solid var(--line);
             scrollbar-width: thin; scrollbar-color: rgba(143,157,182,0.45) transparent;
           }
@@ -2378,7 +2452,7 @@ function Shell({
         <header
           className="app-header"
           style={{
-            background: "rgba(9,14,26,0.72)",
+            background: "var(--header-bg)",
             backdropFilter: "blur(14px)",
             WebkitBackdropFilter: "blur(14px)",
             boxShadow: "var(--shadow-sm)",
@@ -2469,7 +2543,25 @@ function Shell({
               {session && <HeaderSearch value={busca} onChange={onBuscaChange} />}
             </div>
 
-            <div className="header-user-desktop" style={{ justifySelf: "end" }}>
+            <div style={{ justifySelf: "end", display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                onClick={() => setTema(tema === "claro" ? "escuro" : "claro")}
+                title={tema === "claro" ? "Usar tema escuro" : "Usar tema claro"}
+                aria-label={tema === "claro" ? "Usar tema escuro" : "Usar tema claro"}
+                style={{
+                  border: "1px solid var(--line-strong)",
+                  background: "var(--surface)",
+                  color: "var(--ink)",
+                  borderRadius: 4,
+                  padding: "7px 8px",
+                  display: "flex",
+                  alignItems: "center",
+                  flexShrink: 0,
+                }}
+              >
+                {tema === "claro" ? <Moon size={16} /> : <Sun size={16} />}
+              </button>
+            <div className="header-user-desktop">
               {session && (
                 <button
                   onClick={onOpenUserMenu}
@@ -2498,6 +2590,7 @@ function Shell({
                   </span>
                 </button>
               )}
+            </div>
             </div>
           </div>
         </header>
@@ -2582,12 +2675,12 @@ function itensDoMenu(papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalend
     itens.push({ Icon: LayoutGrid, label: "Painel", onClick: onOpenPainel, telas: ["painel"] });
   }
   itens.push({ Icon: ClipboardList, label: "Pedidos", onClick: onGoHome, telas: ["lista", "pedido", "ficha", "usuarios"] });
+  if (canVerClientes(papel)) {
+    itens.push({ Icon: UsersIcon, label: "Clientes", onClick: onOpenClientes, telas: ["clientes"] });
+  }
   if (canVerCalendario(papel)) {
     itens.push({ Icon: BarChart3, label: "Funil", onClick: onOpenKanban, rotate: true, telas: ["kanban"] });
     itens.push({ Icon: CalendarDays, label: "Calendário", onClick: onOpenCalendario, telas: ["calendario"] });
-  }
-  if (canVerClientes(papel)) {
-    itens.push({ Icon: UsersIcon, label: "Clientes", onClick: onOpenClientes, telas: ["clientes"] });
   }
   return itens;
 }
@@ -2596,8 +2689,14 @@ function itensDoMenu(papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalend
    destaque. Só aparece em telas estreitas (ver .mobile-tabs no CSS). */
 function MobileTabs({ session, rota, onGoHome, onOpenCalendario, onOpenKanban, onOpenClientes, onOpenPainel, onOpenUserMenu, onLogout }) {
   const itens = itensDoMenu(session.papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalendario, onOpenClientes });
+  const barraRef = useRef(null);
+  // Mantém a aba ativa visível na faixa que arrasta pro lado.
+  useEffect(() => {
+    const ativa = barraRef.current && barraRef.current.querySelector(".mobile-tab.active");
+    if (ativa && ativa.scrollIntoView) ativa.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [rota]);
   return (
-    <div className="mobile-tabs">
+    <div className="mobile-tabs" ref={barraRef}>
       {itens.map(({ Icon, label, onClick, rotate, telas }) => (
         <button key={label} className={telas.includes(rota) ? "mobile-tab active" : "mobile-tab"} onClick={onClick}>
           <Icon size={18} style={{ transform: rotate ? "rotate(180deg)" : undefined }} />
@@ -2821,7 +2920,7 @@ function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios }) 
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(3,6,14,0.72)",
+        background: "var(--overlay)",
         zIndex: 150,
         display: "flex",
         alignItems: "flex-end",
@@ -3140,7 +3239,7 @@ const painelHeroStyle = {
   padding: "18px 16px",
   border: "1px solid rgba(120,190,255,0.30)",
   background:
-    "radial-gradient(560px 280px at 100% 0%, rgba(70,160,255,0.22), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(216,149,95,0.13), transparent 65%), linear-gradient(160deg, #15233C 0%, #0D1627 100%)",
+    "var(--hero-bg)",
   boxShadow: "var(--shadow-md), 0 0 48px rgba(70,160,255,0.09)",
 };
 
@@ -3148,7 +3247,7 @@ const painelHeroStyle = {
 function PainelBarra({ pct, cor }) {
   const largura = Math.max(0, Math.min(100, pct || 0));
   return (
-    <div style={{ height: 8, borderRadius: 999, background: "rgba(160,200,255,0.10)", overflow: "hidden" }}>
+    <div style={{ height: 8, borderRadius: 999, background: "var(--track)", overflow: "hidden" }}>
       <div
         style={{
           width: `${largura}%`,
@@ -3170,7 +3269,7 @@ function PainelBarraCard({ Icon, titulo, valor, pct, cor }) {
         borderRadius: 14,
         padding: "13px 14px",
         border: "1px solid var(--line)",
-        background: "rgba(5,10,20,0.45)",
+        background: "var(--panel-bg)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, minWidth: 0 }}>
@@ -4025,28 +4124,26 @@ function ClientesScreen({ usuarios, onBack }) {
 
   return (
     <div style={{ paddingTop: 18 }}>
+      <style>{`
+        .cli-grid { display: grid; grid-template-columns: 2fr 1.3fr 1.3fr 1.4fr; gap: 12px; align-items: center; }
+        .cli-head { padding: 11px 18px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); background: var(--surface-hi); border-bottom: 1px solid var(--line-strong); }
+        .cli-row { width: 100%; text-align: left; padding: 14px 18px; color: var(--ink); font-size: 14.5px; background: transparent; border: none; border-bottom: 1px solid var(--line); cursor: pointer; }
+        .cli-row:last-child { border-bottom: none; }
+        .cli-row:hover { background: var(--row-hover); }
+        .cli-lbl { display: none; }
+        @media (max-width: 640px) {
+          .cli-head { display: none; }
+          .cli-grid { grid-template-columns: 1fr; gap: 4px; }
+          .cli-row { padding: 14px 16px; }
+          .cli-lbl { display: inline; color: var(--ink-soft); font-size: 11.5px; margin-right: 6px; }
+        }
+      `}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
         <h1 style={{ fontSize: 30, lineHeight: 1.05 }}>Clientes</h1>
-        {!editando && (
-          <button onClick={() => setEditando({})} style={ghostBtnStyle}>
-            <Plus size={15} /> Novo cliente
-          </button>
-        )}
+        <button onClick={() => setEditando({})} style={ghostBtnStyle}>
+          <Plus size={15} /> Novo cliente
+        </button>
       </div>
-
-      {editando && (
-        <div className="form-narrow">
-          <ClienteForm
-            cliente={editando}
-            usuarios={usuarios}
-            onCancel={() => setEditando(null)}
-            onSaved={async () => {
-              setEditando(null);
-              await recarregar();
-            }}
-          />
-        </div>
-      )}
 
       <div style={{ position: "relative", marginBottom: 12 }}>
         <Search size={16} color="var(--ink-soft)" style={{ position: "absolute", left: 12, top: 12 }} />
@@ -4063,29 +4160,89 @@ function ClientesScreen({ usuarios, onBack }) {
       ) : filtrados.length === 0 ? (
         <div style={emptyStateStyle}>{q ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</div>
       ) : (
-        <div style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-          <div style={{ minWidth: 640 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1.3fr 1.3fr 1.4fr", gap: 12, padding: "10px 16px", fontSize: 11.5, color: "var(--ink-soft)", borderBottom: "1px solid var(--line-strong)" }}>
-              <span>Nome</span>
-              <span>CPF</span>
-              <span>Telefone</span>
-              <span>Vendedor responsável</span>
-            </div>
-            {filtrados.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setEditando(c)}
-                style={{ display: "grid", gridTemplateColumns: "2fr 1.3fr 1.3fr 1.4fr", gap: 12, width: "100%", textAlign: "left", padding: "12px 16px", color: "var(--ink)", fontSize: 14, borderBottom: "1px solid var(--line)" }}
-              >
-                <span style={{ fontWeight: 600 }}>{c.nome}</span>
-                <span style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{formatCPF(c.cpf) || "—"}</span>
-                <span style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{formatTelefone(c.telefone) || "—"}</span>
-                <span>{c.vendedor || "—"}</span>
-              </button>
-            ))}
+        <div style={{ background: "var(--surface)", border: "1px solid var(--line-strong)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
+          <div className="cli-grid cli-head">
+            <span>Nome</span>
+            <span>CPF</span>
+            <span>Telefone</span>
+            <span>Vendedor responsável</span>
           </div>
+          {filtrados.map((c) => (
+            <button key={c.id} className="cli-grid cli-row" onClick={() => setEditando(c)}>
+              <span style={{ fontWeight: 700, fontSize: 15.5 }}>{c.nome}</span>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 13.5 }}>
+                <span className="cli-lbl">CPF</span>
+                {formatCPF(c.cpf) || "—"}
+              </span>
+              <span style={{ fontFamily: "var(--mono)", fontSize: 13.5 }}>
+                <span className="cli-lbl">Tel.</span>
+                {formatTelefone(c.telefone) || "—"}
+              </span>
+              <span style={{ color: "var(--ink-soft)", fontWeight: 500 }}>
+                <span className="cli-lbl">Vendedor</span>
+                {c.vendedor || "—"}
+              </span>
+            </button>
+          ))}
         </div>
       )}
+
+      {editando && (
+        <ClienteSheet
+          cliente={editando}
+          usuarios={usuarios}
+          onClose={() => setEditando(null)}
+          onSaved={async () => {
+            setEditando(null);
+            await recarregar();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* Pop-up do cliente: sobe do fundo da página, centralizado na horizontal,
+   até quase o topo, com cantos arredondados (mesmo jeito do menu do usuário). */
+function ClienteSheet({ cliente, usuarios, onClose, onSaved }) {
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "var(--overlay)", zIndex: 160, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      onClick={onClose}
+    >
+      <style>{`@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`}</style>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--surface)",
+          width: "100%",
+          maxWidth: 640,
+          height: "calc(100% - 28px)",
+          maxHeight: "calc(100% - 28px)",
+          borderRadius: "22px 22px 0 0",
+          border: "1px solid var(--line-strong)",
+          borderBottom: "none",
+          boxShadow: "var(--shadow-md)",
+          display: "flex",
+          flexDirection: "column",
+          animation: "sheetUp 0.28s ease-out",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 12px", borderBottom: "1px solid var(--line)" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{cliente.id ? "Cliente" : "Cadastro"}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {cliente.id ? cliente.nome : "Novo cliente"}
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Fechar" style={{ background: "none", border: "none", padding: 6 }}>
+            <X size={20} color="var(--ink-soft)" />
+          </button>
+        </div>
+        <div style={{ overflowY: "auto", padding: 20, flex: 1 }}>
+          <ClienteForm cliente={cliente} usuarios={usuarios} onCancel={onClose} onSaved={onSaved} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -4126,8 +4283,7 @@ function ClienteForm({ cliente, usuarios, onCancel, onSaved }) {
   };
 
   return (
-    <div style={{ ...cardStyle, marginBottom: 16 }}>
-      <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 12 }}>{cliente.id ? "Editar cliente" : "Novo cliente"}</div>
+    <div>
       <label style={labelStyle}>Nome do cliente</label>
       <input value={nome} onChange={(e) => setNome(e.target.value)} style={inputStyle()} />
       <label style={{ ...labelStyle, marginTop: 10 }}>CPF</label>
@@ -5297,7 +5453,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirmar", onConfirm, 
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(3,6,14,0.72)",
+        background: "var(--overlay)",
         zIndex: 60,
         display: "flex",
         alignItems: "center",
@@ -7549,7 +7705,7 @@ function FichaMedidaField({ label, raw, setRaw, onBlur, error, optional }) {
    ============================================================ */
 const labelStyle = { display: "block", fontSize: 11.5, color: "var(--ink-soft)", marginBottom: 4 };
 const cardStyle = {
-  background: "linear-gradient(160deg, rgba(26,40,66,0.82) 0%, rgba(14,22,38,0.88) 100%)",
+  background: "var(--card-bg)",
   backdropFilter: "blur(10px)",
   WebkitBackdropFilter: "blur(10px)",
   border: "1px solid var(--line)",
