@@ -151,7 +151,7 @@ export async function getSessaoAtual() {
 export async function carregarPerfil(userId) {
   const { data, error } = await supabase.from("perfis").select("*").eq("id", userId).single();
   if (error) return null;
-  return { id: data.id, nome: data.nome, login: data.login, papel: data.papel, ativo: data.ativo, cor: data.cor || null };
+  return { id: data.id, nome: data.nome, login: data.login, papel: data.papel, ativo: data.ativo, cor: data.cor || null, foto: data.foto || null };
 }
 
 export async function fazerLogin(loginInput, senha) {
@@ -176,7 +176,7 @@ export async function loadUsuarios() {
     console.error("loadUsuarios:", error.message);
     return [];
   }
-  return data.map((u) => ({ id: u.id, nome: u.nome, login: u.login, papel: u.papel, ativo: u.ativo, cor: u.cor || null }));
+  return data.map((u) => ({ id: u.id, nome: u.nome, login: u.login, papel: u.papel, ativo: u.ativo, cor: u.cor || null, foto: u.foto || null }));
 }
 
 // Cada pessoa escolhe a própria cor de destaque no Menu de usuário — nunca
@@ -313,7 +313,7 @@ export function subscribeRealtime({ onPedidoChange, onEventoChange, onPerfilChan
       const u = payload.new;
       onPerfilChange({
         tipo: payload.eventType,
-        usuario: { id: u.id, nome: u.nome, login: u.login, papel: u.papel, ativo: u.ativo, cor: u.cor || null },
+        usuario: { id: u.id, nome: u.nome, login: u.login, papel: u.papel, ativo: u.ativo, cor: u.cor || null, foto: u.foto || null },
       });
     })
     .subscribe();
@@ -400,4 +400,52 @@ export async function salvarCliente(c) {
     return { ok: false, duplicado: error.code === "23505", motivo: "cpf" };
   }
   return { ok: true };
+}
+
+/* ------------------------------------------------------------
+   PERFIL (foto de rosto e senha própria) e exclusão de usuário
+   ------------------------------------------------------------ */
+export async function atualizarMinhaFoto(fotoDataUrl) {
+  const { error } = await supabase.rpc("atualizar_minha_foto", { nova_foto: fotoDataUrl });
+  if (error) {
+    console.error("atualizarMinhaFoto:", error.message);
+    return false;
+  }
+  return true;
+}
+// Cada pessoa troca a própria senha direto no Supabase Auth.
+export async function alterarMinhaSenha(novaSenha) {
+  const { error } = await supabase.auth.updateUser({ password: novaSenha });
+  if (error) throw error;
+  return true;
+}
+// Exclusão definitiva: função Postgres `excluir_usuario` (supabase/excluir_usuario.sql).
+export async function excluirUsuario(id) {
+  const { error } = await supabase.rpc("excluir_usuario", { p_id: id });
+  if (error) throw error;
+  return true;
+}
+// Junta dois clientes em um: apaga o "removido" e grava os dados já combinados
+// no "mantido" (só gestores têm permissão, pela RLS da tabela).
+export async function juntarClientes({ manterId, removerId, dados }) {
+  if (removerId) {
+    const { error: e1 } = await supabase.from("clientes").delete().eq("id", removerId);
+    if (e1) {
+      console.error("juntarClientes/apagar:", e1.message);
+      return false;
+    }
+  }
+  const row = {
+    nome: dados.nome.trim(),
+    cpf: (dados.cpf || "").replace(/\D/g, "") || null,
+    telefone: (dados.telefone || "").replace(/\D/g, "") || null,
+    endereco: (dados.endereco || "").trim() || null,
+    vendedor: dados.vendedor || null,
+  };
+  const { error } = await supabase.from("clientes").update(row).eq("id", manterId);
+  if (error) {
+    console.error("juntarClientes/atualizar:", error.message);
+    return false;
+  }
+  return true;
 }
