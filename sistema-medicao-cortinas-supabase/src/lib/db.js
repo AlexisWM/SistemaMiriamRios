@@ -31,6 +31,7 @@ function pedidoParaLinha(pedido) {
     id: pedido.id,
     numero: pedido.numero,
     cliente: pedido.cliente,
+    cpf: pedido.cpf || null,
     telefone: pedido.telefone,
     endereco: pedido.endereco,
     vendedor: pedido.vendedor,
@@ -45,6 +46,7 @@ function linhaParaPedido(row) {
     id: row.id,
     numero: row.numero,
     cliente: row.cliente,
+    cpf: row.cpf || "",
     telefone: row.telefone,
     endereco: row.endereco,
     vendedor: row.vendedor,
@@ -343,4 +345,59 @@ export async function loadPrecosOrcamento() {
     mapa[r.chave] = Number(r.preco);
   });
   return mapa;
+}
+
+/* ------------------------------------------------------------
+   CLIENTES (tela só para Gestor/Gestor Master)
+   ------------------------------------------------------------
+   O cadastro é automático ao criar um pedido (registrarCliente, função
+   Postgres que não repete CPF) e também pode ser feito à mão na tela.
+   ------------------------------------------------------------ */
+function linhaParaCliente(r) {
+  return { id: r.id, nome: r.nome, cpf: r.cpf || "", telefone: r.telefone || "", endereco: r.endereco || "", vendedor: r.vendedor || "", criadoEm: r.criado_em };
+}
+export async function loadClientes() {
+  const { data, error } = await supabase.from("clientes").select("*").order("nome", { ascending: true });
+  if (error) {
+    console.error("loadClientes:", error.message);
+    return [];
+  }
+  return data.map(linhaParaCliente);
+}
+export async function registrarCliente({ nome, cpf, telefone, endereco, vendedor }) {
+  const { data, error } = await supabase.rpc("registrar_cliente_v2", {
+    p_nome: nome,
+    p_cpf: cpf || "",
+    p_telefone: telefone || "",
+    p_endereco: endereco || "",
+    p_vendedor: vendedor || "",
+  });
+  if (error) {
+    console.error("registrarCliente:", error.message);
+    return { ok: false };
+  }
+  return { ok: true, ...data };
+}
+// Cliente novo passa pela mesma regra anti-duplicidade do cadastro automático.
+// Edição de cliente existente só bloqueia CPF repetido (índice único no banco).
+export async function salvarCliente(c) {
+  if (!c.id) {
+    const r = await registrarCliente({ nome: c.nome, cpf: c.cpf, telefone: c.telefone, endereco: c.endereco, vendedor: c.vendedor });
+    if (!r.ok) return { ok: false };
+    if (!r.criado) return { ok: false, duplicado: true, motivo: r.motivo, nomeExistente: r.nome };
+    return { ok: true };
+  }
+  const row = {
+    nome: c.nome.trim(),
+    cpf: (c.cpf || "").replace(/\D/g, "") || null,
+    telefone: (c.telefone || "").replace(/\D/g, "") || null,
+    endereco: (c.endereco || "").trim() || null,
+    vendedor: c.vendedor || null,
+  };
+  const { error } = await supabase.from("clientes").update(row).eq("id", c.id);
+  if (error) {
+    console.error("salvarCliente:", error.message);
+    return { ok: false, duplicado: error.code === "23505", motivo: "cpf" };
+  }
+  return { ok: true };
 }
