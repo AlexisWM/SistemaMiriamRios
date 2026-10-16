@@ -78,6 +78,8 @@ function rowParaIndexItem(r) {
     id: r.id,
     numero: r.numero,
     cliente: r.cliente,
+    cpf: r.cpf || "",
+    telefone: r.telefone || "",
     criadoEm: r.criado_em,
     status: r.status,
     vendedor: r.vendedor,
@@ -89,7 +91,7 @@ function rowParaIndexItem(r) {
 export async function loadIndex() {
   const { data, error } = await supabase
     .from("pedidos")
-    .select("id,numero,cliente,criado_em,status,vendedor,perdido_em,ambientes")
+    .select("id,numero,cliente,cpf,telefone,criado_em,status,vendedor,perdido_em,ambientes")
     .order("numero", { ascending: false });
   if (error) {
     console.error("loadIndex:", error.message);
@@ -468,4 +470,14 @@ export async function excluirPedido(id) {
     return false;
   }
   return true;
+}
+
+// Busca de cliente já cadastrado por CPF ou telefone (Novo pedido).
+export async function buscarClientePorDocumento(termo) {
+  const { data, error } = await supabase.rpc("buscar_cliente_para_pedido", { p_termo: termo });
+  if (error) {
+    console.error("buscarClientePorDocumento:", error.message);
+    return [];
+  }
+  return data || [];
 }
