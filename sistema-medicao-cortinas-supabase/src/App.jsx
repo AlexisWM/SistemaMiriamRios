@@ -2178,6 +2178,9 @@ export default function App() {
       onOpenClientes={() => setRoute({ screen: "clientes" })}
       onOpenPainel={() => setRoute({ screen: "painel" })}
       onGoHome={() => setRoute({ screen: "lista" })}
+      onVoltar={() =>
+        setRoute(route.screen === "ficha" ? { screen: "pedido", pedidoId: route.pedidoId } : { screen: "lista" })
+      }
       showHome={route.screen !== "lista"}
       fillHeight={route.screen === "kanban"}
       wide={route.screen === "kanban"}
@@ -2330,6 +2333,7 @@ function Shell({
   onOpenClientes,
   onOpenPainel,
   onGoHome,
+  onVoltar,
   showHome,
   fillHeight,
   wide,
@@ -2629,9 +2633,12 @@ function Shell({
             {session && (
               <button
                 className="header-hamburger-mobile"
-                onClick={() => setRailOpen((v) => !v)}
-                title="Menu"
+                onClick={onVoltar}
+                disabled={!showHome}
+                aria-label="Voltar"
+                title="Voltar"
                 style={{
+                  opacity: showHome ? 1 : 0.35,
                   border: "1px solid var(--line)",
                   background: "var(--surface)",
                   borderRadius: 4,
@@ -2640,7 +2647,7 @@ function Shell({
                   flexShrink: 0,
                 }}
               >
-                <Menu size={16} color="var(--ink-soft)" />
+                <ArrowLeft size={16} color="var(--ink-soft)" />
               </button>
             )}
             <div
