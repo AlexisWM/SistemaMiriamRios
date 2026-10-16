@@ -690,7 +690,7 @@ function calcularMaterialCamada(larguraReal, camada, folhas) {
       fitaWave = { metros, valorUnitario: PRECO_UNITARIO.fitaWaveMetro, total: round2(metros * PRECO_UNITARIO.fitaWaveMetro) };
     }
   } else if (camada.acabamento === "Franzido") {
-    // Mesma contagem de deslizante do Wave 5cm; sem cordão nem clips — o
+    // Mesma contagem de deslizante do Wave 5cm; sem cordão (clips só com fita fácil) — o
     // deslizante do franzido é costurado direto na cortina. Franzido não
     // usa Transparente (só TNT ou Tecido) e a fita fácil aqui é OPCIONAL,
     // marcada à parte pela vendedora (adicionarFitaFacil) — vem
@@ -704,6 +704,10 @@ function calcularMaterialCamada(larguraReal, camada, folhas) {
       };
     }
     if (camada.adicionarFitaFacil && (camada.cozTipo === "TNT" || camada.cozTipo === "Tecido")) {
+      // Com fita fácil no franzido, os clips são cobrados (1 por deslizante).
+      if (wave) {
+        clips = { quantidade: wave.clips, valorUnitario: PRECO_UNITARIO.clip, total: round2(wave.clips * PRECO_UNITARIO.clip) };
+      }
       const metros = camada.qtdCoz || 0;
       fitaWave = { metros, valorUnitario: PRECO_UNITARIO.fitaWaveMetro, total: round2(metros * PRECO_UNITARIO.fitaWaveMetro) };
     }
@@ -5853,211 +5857,42 @@ function useMedicaoDraft(peca, papel, nome, onUpdate) {
 /* ============================================================
    PEÇA ROW — inline measurement entry (compact, table view)
    ============================================================ */
-function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
-  const editable = canEditMedicao(peca, papel);
-  const d = useMedicaoDraft(peca, papel, nome, onUpdate);
-  const [confirmando, setConfirmando] = useState(false);
-  const podeExcluir = canDeletePeca(peca, papel);
-  // Peça sem medida salva já nasce aberta (para preencher rápido). Depois de
-  // salva, fecha numa linha compacta; toca na linha para ver tudo de novo.
-  const [aberta, setAberta] = useState(!peca.locked);
-  const [medindo, setMedindo] = useState(false);
-  const eraTravada = useRef(peca.locked);
-  useEffect(() => {
-    if (peca.locked && !eraTravada.current) setAberta(false); // acabou de salvar a medição
-    eraTravada.current = peca.locked;
-  }, [peca.locked]);
-
+function PecaRow({ peca, papel, onOpen }) {
   const situacao = peca.statusProducao || (peca.locked ? "Medida salva" : "Sem medida");
   const corSituacao = peca.statusProducao ? statusPedidoColor(peca.statusProducao) : peca.locked ? "var(--success)" : "var(--amber)";
   const medidaTxt =
     peca.largura && peca.altura
       ? `${fmtMedida(peca.largura)} × ${fmtMedida(peca.altura)} m${peca.alturaCurta ? ` (curta ${fmtMedida(peca.alturaCurta)})` : ""}`
-      : "—";
-
-  if (!aberta && peca.locked) {
-    return (
-      <button
-        onClick={() => setAberta(true)}
-        title="Ver detalhes da peça"
-        style={{
-          width: "100%",
-          textAlign: "left",
-          color: "var(--ink)",
-          border: "1px solid var(--line)",
-          borderLeft: `4px solid ${corSituacao}`,
-          borderRadius: 10,
-          padding: "10px 12px",
-          background: "var(--surface)",
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: "4px 10px",
-        }}
-      >
-        <span style={{ fontFamily: "var(--mono)", fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>{peca.codigo}</span>
-        <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>{peca.tipo}</span>
-        <span style={{ ...statusBadgeStyle(corSituacao), fontSize: 11 }}>{situacao}</span>
-        <span style={{ flex: 1 }} />
-        <ChevronRight size={16} color="var(--ink-soft)" />
-        <span style={{ flexBasis: "100%", display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
-          <span style={{ fontWeight: 600 }}>{medidaTxt}</span>
-          {canVerValores(papel) && peca.valor > 0 && <span style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{fmtValor(peca.valor)}</span>}
-        </span>
-      </button>
-    );
-  }
-
+      : "Sem medida";
   return (
-    <div
+    <button
+      onClick={onOpen}
+      title="Abrir ficha da peça"
       style={{
-        border: "1px solid var(--line-strong)",
+        width: "100%",
+        textAlign: "left",
+        color: "var(--ink)",
+        border: "1px solid var(--line)",
         borderLeft: `4px solid ${corSituacao}`,
         borderRadius: 10,
-        padding: "12px 14px",
-        background: peca.locked ? "var(--bg)" : "var(--surface)",
+        padding: "10px 12px",
+        background: "var(--surface)",
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: "4px 10px",
       }}
     >
-      {medindo && <MedicaoWizard peca={peca} d={d} onClose={() => setMedindo(false)} />}
-      {confirmando && (
-        <ConfirmDialog
-          title={`Excluir ${peca.tipo.toLowerCase()} ${peca.codigo}?`}
-          message={
-            peca.statusProducao
-              ? `Essa peça já foi enviada para produção (${peca.statusProducao}). Excluir remove permanentemente a medição, o histórico e o andamento dela. Essa ação não pode ser desfeita.`
-              : "Essa ação remove a peça e sua medição permanentemente e não pode ser desfeita."
-          }
-          confirmLabel="Excluir peça"
-          onConfirm={() => {
-            setConfirmando(false);
-            onDelete();
-          }}
-          onCancel={() => setConfirmando(false)}
-        />
-      )}
-
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <button
-          onClick={onOpen}
-          style={{
-            fontFamily: "var(--mono)",
-            fontSize: 13,
-            fontWeight: 600,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            background: "var(--accent-soft)",
-            color: "var(--accent)",
-            border: "1px solid var(--accent)",
-            borderRadius: 8,
-            padding: "5px 8px 5px 10px",
-          }}
-          title="Abrir ficha da peça"
-        >
-          {peca.codigo}
-          <ChevronRight size={15} />
-        </button>
-        <span style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{peca.tipo}</span>
-        <span style={{ flex: 1 }} />
-        {peca.locked && (
-          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--locked)" }}>
-            <Lock size={12} /> {isGestor(papel) ? "editável (gestor)" : "bloqueada"}
-          </span>
-        )}
-        {podeExcluir && (
-          <button
-            onClick={() => setConfirmando(true)}
-            title="Excluir peça"
-            style={{ background: "none", border: "none", padding: 3, color: "var(--ink-soft)", display: "flex" }}
-          >
-            <Trash2 size={14} />
-          </button>
-        )}
-      </div>
-
-      {!peca.locked && editable ? (
-        <div>
-          {(d.larguraRaw || d.alturaRaw || d.alturaCurtaRaw || d.obs) && (
-            <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 8, lineHeight: 1.5 }}>
-              {d.larguraRaw && <div>Largura: <b style={{ color: "var(--ink)" }}>{formatFromDigits(d.larguraRaw)} m</b></div>}
-              {d.alturaRaw && <div>Altura: <b style={{ color: "var(--ink)" }}>{formatFromDigits(d.alturaRaw)} m</b></div>}
-              {d.alturaCurtaRaw && <div>Altura curta: <b style={{ color: "var(--ink)" }}>{formatFromDigits(d.alturaCurtaRaw)} m</b></div>}
-              {d.obs && <div>Obs.: <b style={{ color: "var(--ink)" }}>{d.obs}</b></div>}
-            </div>
-          )}
-          <button onClick={() => setMedindo(true)} style={{ ...primaryBtnStyle(false), marginTop: 0, width: "100%", padding: "14px 16px", fontSize: 15 }}>
-            {d.larguraRaw || d.alturaRaw ? "Continuar medição" : "Medir agora"}
-          </button>
-        </div>
-      ) : (
-        <>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 6 }}>
-          <MedidaField
-            label="Largura"
-            raw={d.larguraRaw}
-            setRaw={d.setLarguraRaw}
-            disabled={!editable}
-            error={d.missing.includes("Largura")}
-            onBlur={() => d.commitField("largura", d.larguraRaw)}
-          />
-          <MedidaField
-            label="Altura"
-            raw={d.alturaRaw}
-            setRaw={d.setAlturaRaw}
-            disabled={!editable}
-            error={d.missing.includes("Altura")}
-            onBlur={() => d.commitField("altura", d.alturaRaw)}
-          />
-          <MedidaField
-            label="Alt. curta"
-            raw={d.alturaCurtaRaw}
-            setRaw={d.setAlturaCurtaRaw}
-            disabled={!editable}
-            onBlur={() => d.commitField("alturaCurta", d.alturaCurtaRaw)}
-            optional
-          />
-        </div>
-  
-        <input
-          value={d.obs}
-          onChange={(e) => d.setObs(e.target.value)}
-          onBlur={d.commitObs}
-          disabled={!editable}
-          placeholder="Observações"
-          style={{ ...inputStyle(), fontSize: 12.5, padding: "6px 8px", opacity: editable ? 1 : 0.75 }}
-        />
-  
-        </>
-      )}
-
-      {canVerValores(papel) && (
-        <div style={{ marginTop: 6 }}>
-          <ValorPeca peca={peca} onUpdate={onUpdate} />
-        </div>
-      )}
-
-      <ProducaoControls peca={peca} papel={papel} nome={nome} onUpdate={onUpdate} />
-
-      <button
-        onClick={onOpen}
-        style={{
-          ...ghostBtnStyle,
-          width: "100%",
-          justifyContent: "center",
-          marginTop: 8,
-        }}
-      >
-        <Info size={14} /> Abrir ficha completa da peça
-      </button>
-      {peca.locked && (
-        <button
-          onClick={() => setAberta(false)}
-          style={{ background: "none", border: "none", color: "var(--ink-soft)", fontSize: 12.5, width: "100%", marginTop: 6, padding: 4, textDecoration: "underline" }}
-        >
-          Recolher
-        </button>
-      )}
-    </div>
+      <span style={{ fontFamily: "var(--mono)", fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>{peca.codigo}</span>
+      <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>{peca.tipo}</span>
+      <span style={{ ...statusBadgeStyle(corSituacao), fontSize: 11 }}>{situacao}</span>
+      <span style={{ flex: 1 }} />
+      <ChevronRight size={16} color="var(--ink-soft)" />
+      <span style={{ flexBasis: "100%", display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
+        <span style={{ fontWeight: 600, color: peca.locked ? "var(--ink)" : "var(--ink-soft)" }}>{medidaTxt}</span>
+        {canVerValores(papel) && peca.valor > 0 && <span style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{fmtValor(peca.valor)}</span>}
+      </span>
+    </button>
   );
 }
 
@@ -8331,76 +8166,69 @@ function InfoRow({ label, value, mono }) {
 function FichaMedicao({ peca, papel, nome, onUpdate }) {
   const editable = canEditMedicao(peca, papel);
   const d = useMedicaoDraft(peca, papel, nome, onUpdate);
+  const [medindo, setMedindo] = useState(false);
+  const savedDate = peca.savedAt ? new Date(peca.savedAt) : null;
+  const medidaTxt =
+    peca.largura && peca.altura
+      ? `${fmtMedida(peca.largura)} × ${fmtMedida(peca.altura)} m${peca.alturaCurta ? ` (curta ${fmtMedida(peca.alturaCurta)})` : ""}`
+      : null;
+  const compacto = { ...cardStyle, padding: "10px 12px" };
 
-  if (peca.locked && !editable) {
-    const savedDate = peca.savedAt ? new Date(peca.savedAt) : null;
+  // Peça sem medida salva
+  if (!peca.locked) {
+    if (!editable) return <div style={{ ...compacto, fontSize: 12.5, color: "var(--ink-soft)" }}>Ainda sem medida.</div>;
+    const temRascunho = d.larguraRaw || d.alturaRaw || d.alturaCurtaRaw || d.obs;
     return (
-      <div style={{ ...cardStyle, padding: "6px 14px 14px" }}>
-        <FichaMedidaRow label="Largura (m)" value={fmtMedida(peca.largura) || "—"} />
-        <FichaMedidaRow label="Altura (m)" value={fmtMedida(peca.altura) || "—"} />
-        <FichaMedidaRow label="Altura curta (m)" value={peca.alturaCurta != null ? fmtMedida(peca.alturaCurta) : "—"} />
-        <FichaMedidaRow label="Observações" value={peca.observacoes || "—"} last={!savedDate} />
+      <div style={compacto}>
+        {medindo && <MedicaoWizard peca={peca} d={d} onClose={() => setMedindo(false)} />}
+        {temRascunho && (
+          <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 8, lineHeight: 1.5 }}>
+            {d.larguraRaw && <div>Largura: <b style={{ color: "var(--ink)" }}>{formatFromDigits(d.larguraRaw)} m</b></div>}
+            {d.alturaRaw && <div>Altura: <b style={{ color: "var(--ink)" }}>{formatFromDigits(d.alturaRaw)} m</b></div>}
+            {d.alturaCurtaRaw && <div>Altura curta: <b style={{ color: "var(--ink)" }}>{formatFromDigits(d.alturaCurtaRaw)} m</b></div>}
+            {d.obs && <div>Obs.: <b style={{ color: "var(--ink)" }}>{d.obs}</b></div>}
+          </div>
+        )}
+        <button onClick={() => setMedindo(true)} style={{ ...primaryBtnStyle(false), marginTop: 0, width: "100%" }}>
+          {temRascunho ? "Continuar medição" : "Medir agora"}
+        </button>
+      </div>
+    );
+  }
+
+  // Medida salva — somente leitura
+  if (!editable) {
+    return (
+      <div style={compacto}>
+        <div style={{ fontFamily: "var(--mono)", fontSize: 15, fontWeight: 700 }}>{medidaTxt || "—"}</div>
+        {peca.observacoes && <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginTop: 4 }}>{peca.observacoes}</div>}
         {savedDate && (
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)", fontSize: 11, color: "var(--ink-soft)", display: "flex", alignItems: "center", gap: 5 }}>
-            <Lock size={11} />
-            Salvo por {peca.savedBy} em {savedDate.toLocaleDateString("pt-BR")} às{" "}
-            {savedDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--ink-soft)", display: "flex", alignItems: "center", gap: 5 }}>
+            <Lock size={11} /> Salvo por {peca.savedBy} em {savedDate.toLocaleDateString("pt-BR")}
           </div>
         )}
       </div>
     );
   }
 
+  // Medida salva — gestor corrige (registra histórico)
   return (
-    <div style={cardStyle}>
-      {peca.locked && (isGestor(papel)) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--locked)", marginBottom: 12 }}>
-          <Lock size={11} /> Medição já salva — qualquer alteração fica registrada no histórico
-        </div>
-      )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <FichaMedidaField
-          label="Largura (m)"
-          raw={d.larguraRaw}
-          setRaw={d.setLarguraRaw}
-          error={d.missing.includes("Largura")}
-          onBlur={() => d.commitField("largura", d.larguraRaw)}
-        />
-        <FichaMedidaField
-          label="Altura (m)"
-          raw={d.alturaRaw}
-          setRaw={d.setAlturaRaw}
-          error={d.missing.includes("Altura")}
-          onBlur={() => d.commitField("altura", d.alturaRaw)}
-        />
-        <FichaMedidaField
-          label="Altura curta (m)"
-          raw={d.alturaCurtaRaw}
-          setRaw={d.setAlturaCurtaRaw}
-          onBlur={() => d.commitField("alturaCurta", d.alturaCurtaRaw)}
-          optional
-        />
-        <label style={{ display: "block" }}>
-          <span style={labelStyle}>Observações</span>
-          <textarea
-            value={d.obs}
-            onChange={(e) => d.setObs(e.target.value)}
-            onBlur={d.commitObs}
-            rows={2}
-            placeholder="Particularidades da medição"
-            style={{ ...inputStyle(), resize: "vertical" }}
-          />
-        </label>
+    <div style={compacto}>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--locked)", marginBottom: 8 }}>
+        <Lock size={11} /> Alterações ficam registradas no histórico
       </div>
-
-      {!peca.locked && (
-        <>
-          <button onClick={d.handleConcluir} style={{ ...primaryBtnStyle(false), marginTop: 14 }}>
-            <Check size={15} /> Salvar medição
-          </button>
-          {d.missing.length > 0 && <div style={{ ...missingTextStyle, textAlign: "center" }}>Preencha: {d.missing.join(", ")}</div>}
-        </>
-      )}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 6 }}>
+        <MedidaField label="Largura" raw={d.larguraRaw} setRaw={d.setLarguraRaw} onBlur={() => d.commitField("largura", d.larguraRaw)} />
+        <MedidaField label="Altura" raw={d.alturaRaw} setRaw={d.setAlturaRaw} onBlur={() => d.commitField("altura", d.alturaRaw)} />
+        <MedidaField label="Alt. curta" raw={d.alturaCurtaRaw} setRaw={d.setAlturaCurtaRaw} onBlur={() => d.commitField("alturaCurta", d.alturaCurtaRaw)} optional />
+      </div>
+      <input
+        value={d.obs}
+        onChange={(e) => d.setObs(e.target.value)}
+        onBlur={d.commitObs}
+        placeholder="Observações"
+        style={{ ...inputStyle(), fontSize: 12.5, padding: "6px 8px" }}
+      />
     </div>
   );
 }
