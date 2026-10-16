@@ -4496,6 +4496,16 @@ function ClientesScreen({ usuarios, onBack }) {
    até quase o topo, com cantos arredondados (mesmo jeito do menu do usuário). */
 function ClienteSheet({ cliente, todos, usuarios, onClose, onSaved }) {
   return (
+    <FolhaInferior rotulo={cliente.id ? "Cliente" : "Cadastro"} titulo={cliente.id ? cliente.nome : "Novo cliente"} onClose={onClose}>
+      <ClienteForm cliente={cliente} todos={todos} usuarios={usuarios} onCancel={onClose} onSaved={onSaved} />
+    </FolhaInferior>
+  );
+}
+
+/* Pop-up padrão do sistema: sobe do fundo da página, centralizado na horizontal,
+   até quase o topo, com cantos arredondados (mesmo jeito do menu do usuário). */
+function FolhaInferior({ rotulo, titulo, onClose, children }) {
+  return (
     <div
       style={{ position: "fixed", inset: 0, background: "var(--overlay)", zIndex: 160, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
       onClick={onClose}
@@ -4520,18 +4530,14 @@ function ClienteSheet({ cliente, todos, usuarios, onClose, onSaved }) {
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 12px", borderBottom: "1px solid var(--line)" }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{cliente.id ? "Cliente" : "Cadastro"}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {cliente.id ? cliente.nome : "Novo cliente"}
-            </div>
+            <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{rotulo}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titulo}</div>
           </div>
           <button onClick={onClose} aria-label="Fechar" style={{ background: "none", border: "none", padding: 6 }}>
             <X size={20} color="var(--ink-soft)" />
           </button>
         </div>
-        <div style={{ overflowY: "auto", padding: 20, flex: 1 }}>
-          <ClienteForm cliente={cliente} todos={todos} usuarios={usuarios} onCancel={onClose} onSaved={onSaved} />
-        </div>
+        <div style={{ overflowY: "auto", padding: 20, flex: 1 }}>{children}</div>
       </div>
     </div>
   );
@@ -4756,7 +4762,7 @@ function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated })
       </div>
 
       {showForm && (
-        <div className="form-narrow">
+        <FolhaInferior rotulo="Pedidos" titulo="Novo pedido" onClose={() => setShowForm(false)}>
           <NovoPedidoForm
             papel={papel}
             nome={nome}
@@ -4767,7 +4773,7 @@ function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated })
               onCreated(id);
             }}
           />
-        </div>
+        </FolhaInferior>
       )}
 
       {visiveis.length > 0 && (
@@ -4826,7 +4832,7 @@ function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated })
         </div>
       )}
 
-      {sorted.length === 0 && !showForm && (
+      {sorted.length === 0 && (
         <div style={emptyStateStyle}>
           {filtrando
             ? "Nenhum pedido encontrado com esses filtros."
@@ -4958,8 +4964,7 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
   };
 
   return (
-    <div style={{ ...cardStyle, marginBottom: 16 }}>
-      <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 12 }}>Novo pedido</div>
+    <div>
       <label style={labelStyle}>Nome do cliente</label>
       <input value={cliente} onChange={(e) => setCliente(e.target.value)} style={inputStyle()} placeholder="Ex.: João da Silva" />
       <label style={{ ...labelStyle, marginTop: 10 }}>CPF</label>
