@@ -5856,6 +5856,7 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
   // Peça sem medida salva já nasce aberta (para preencher rápido). Depois de
   // salva, fecha numa linha compacta; toca na linha para ver tudo de novo.
   const [aberta, setAberta] = useState(!peca.locked);
+  const [medindo, setMedindo] = useState(false);
   const eraTravada = useRef(peca.locked);
   useEffect(() => {
     if (peca.locked && !eraTravada.current) setAberta(false); // acabou de salvar a medição
@@ -5912,6 +5913,7 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
         background: peca.locked ? "var(--bg)" : "var(--surface)",
       }}
     >
+      {medindo && <MedicaoWizard peca={peca} d={d} onClose={() => setMedindo(false)} />}
       {confirmando && (
         <ConfirmDialog
           title={`Excluir ${peca.tipo.toLowerCase()} ${peca.codigo}?`}
@@ -5968,58 +5970,65 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
         )}
       </div>
 
+      {!peca.locked && editable ? (
+        <div>
+          {(d.larguraRaw || d.alturaRaw || d.alturaCurtaRaw || d.obs) && (
+            <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 8, lineHeight: 1.5 }}>
+              {d.larguraRaw && <div>Largura: <b style={{ color: "var(--ink)" }}>{formatFromDigits(d.larguraRaw)} m</b></div>}
+              {d.alturaRaw && <div>Altura: <b style={{ color: "var(--ink)" }}>{formatFromDigits(d.alturaRaw)} m</b></div>}
+              {d.alturaCurtaRaw && <div>Altura curta: <b style={{ color: "var(--ink)" }}>{formatFromDigits(d.alturaCurtaRaw)} m</b></div>}
+              {d.obs && <div>Obs.: <b style={{ color: "var(--ink)" }}>{d.obs}</b></div>}
+            </div>
+          )}
+          <button onClick={() => setMedindo(true)} style={{ ...primaryBtnStyle(false), marginTop: 0, width: "100%", padding: "14px 16px", fontSize: 15 }}>
+            {d.larguraRaw || d.alturaRaw ? "Continuar medição" : "Medir agora"}
+          </button>
+        </div>
+      ) : (
+        <>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 6 }}>
-        <MedidaField
-          label="Largura"
-          raw={d.larguraRaw}
-          setRaw={d.setLarguraRaw}
+          <MedidaField
+            label="Largura"
+            raw={d.larguraRaw}
+            setRaw={d.setLarguraRaw}
+            disabled={!editable}
+            error={d.missing.includes("Largura")}
+            onBlur={() => d.commitField("largura", d.larguraRaw)}
+          />
+          <MedidaField
+            label="Altura"
+            raw={d.alturaRaw}
+            setRaw={d.setAlturaRaw}
+            disabled={!editable}
+            error={d.missing.includes("Altura")}
+            onBlur={() => d.commitField("altura", d.alturaRaw)}
+          />
+          <MedidaField
+            label="Alt. curta"
+            raw={d.alturaCurtaRaw}
+            setRaw={d.setAlturaCurtaRaw}
+            disabled={!editable}
+            onBlur={() => d.commitField("alturaCurta", d.alturaCurtaRaw)}
+            optional
+          />
+        </div>
+  
+        <input
+          value={d.obs}
+          onChange={(e) => d.setObs(e.target.value)}
+          onBlur={d.commitObs}
           disabled={!editable}
-          error={d.missing.includes("Largura")}
-          onBlur={() => d.commitField("largura", d.larguraRaw)}
+          placeholder="Observações"
+          style={{ ...inputStyle(), fontSize: 12.5, padding: "6px 8px", opacity: editable ? 1 : 0.75 }}
         />
-        <MedidaField
-          label="Altura"
-          raw={d.alturaRaw}
-          setRaw={d.setAlturaRaw}
-          disabled={!editable}
-          error={d.missing.includes("Altura")}
-          onBlur={() => d.commitField("altura", d.alturaRaw)}
-        />
-        <MedidaField
-          label="Alt. curta"
-          raw={d.alturaCurtaRaw}
-          setRaw={d.setAlturaCurtaRaw}
-          disabled={!editable}
-          onBlur={() => d.commitField("alturaCurta", d.alturaCurtaRaw)}
-          optional
-        />
-      </div>
-
-      <input
-        value={d.obs}
-        onChange={(e) => d.setObs(e.target.value)}
-        onBlur={d.commitObs}
-        disabled={!editable}
-        placeholder="Observações"
-        style={{ ...inputStyle(), fontSize: 12.5, padding: "6px 8px", opacity: editable ? 1 : 0.75 }}
-      />
+  
+        </>
+      )}
 
       {canVerValores(papel) && (
         <div style={{ marginTop: 6 }}>
           <ValorPeca peca={peca} onUpdate={onUpdate} />
         </div>
-      )}
-
-      {!peca.locked && editable && (
-        <>
-          <button
-            onClick={d.handleConcluir}
-            style={{ ...smallActionStyle, marginTop: 6, color: "var(--success)", borderColor: "var(--success-soft)" }}
-          >
-            <Check size={13} /> Salvar medição
-          </button>
-          {d.missing.length > 0 && <div style={missingTextStyle}>Preencha: {d.missing.join(", ")}</div>}
-        </>
       )}
 
       <ProducaoControls peca={peca} papel={papel} nome={nome} onUpdate={onUpdate} />
@@ -7834,6 +7843,153 @@ function ValorPeca({ peca, onUpdate }) {
         style={{ ...inputStyle(), fontFamily: "var(--mono)", textAlign: "right" }}
       />
     </label>
+  );
+}
+
+/* ============================================================
+   ASSISTENTE DE MEDIÇÃO — uma pergunta por vez (estilo formulário passo a passo)
+   Largura → Altura → Altura curta (pode pular) → Observações (pode pular) → Conferir.
+   Os valores ficam no mesmo rascunho da peça (useMedicaoDraft); só "Salvar
+   medição", no último passo, grava e trava a medida.
+   ============================================================ */
+function MedicaoWizard({ peca, d, onClose }) {
+  const [passo, setPasso] = useState(0);
+  const [tentou, setTentou] = useState(false);
+  const inputRef = useRef(null);
+  const campos = [
+    { titulo: "Qual a largura?", dica: "Em metros. Digite só os números: 180 vira 1,80.", raw: d.larguraRaw, set: d.setLarguraRaw, obrigatorio: true },
+    { titulo: "Qual a altura?", dica: "Em metros. Digite só os números: 140 vira 1,40.", raw: d.alturaRaw, set: d.setAlturaRaw, obrigatorio: true },
+    { titulo: "Tem altura curta?", dica: "Só se a peça tiver uma parte mais baixa. Se não tiver, toque em Pular.", raw: d.alturaCurtaRaw, set: d.setAlturaCurtaRaw, obrigatorio: false },
+  ];
+  const ULTIMO = 4; // conferir
+  const num = passo <= 2;
+  const campo = campos[passo];
+  const valido = !num || !campo.obrigatorio || (digitsToNum(campo.raw) != null && digitsToNum(campo.raw) > 0);
+
+  useEffect(() => {
+    setTentou(false);
+    const t = setTimeout(() => inputRef.current && inputRef.current.focus(), 60);
+    return () => clearTimeout(t);
+  }, [passo]);
+  // Mantém o cursor no fim: os números entram pela direita.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (el && num && document.activeElement === el) el.setSelectionRange(el.value.length, el.value.length);
+  });
+
+  const avancar = () => {
+    if (!valido) {
+      setTentou(true);
+      return;
+    }
+    setPasso((p) => Math.min(ULTIMO, p + 1));
+  };
+  const pular = () => {
+    if (passo === 2) d.setAlturaCurtaRaw("");
+    if (passo === 3) d.setObs("");
+    setPasso((p) => p + 1);
+  };
+  const salvar = () => {
+    d.handleConcluir();
+    onClose();
+  };
+
+  const linhas = [
+    ["Largura", d.larguraRaw ? formatFromDigits(d.larguraRaw) + " m" : "—", 0],
+    ["Altura", d.alturaRaw ? formatFromDigits(d.alturaRaw) + " m" : "—", 1],
+    ["Altura curta", d.alturaCurtaRaw ? formatFromDigits(d.alturaCurtaRaw) + " m" : "Não tem", 2],
+    ["Observações", d.obs || "Nenhuma", 3],
+  ];
+  const podeSalvar = digitsToNum(d.larguraRaw) != null && digitsToNum(d.alturaRaw) != null;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 180, background: "var(--bg)", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+      <style>{`
+        .wiz-input { font-size: 52px !important; font-family: var(--mono); text-align: center; padding: 18px 12px !important; border-width: 2px !important; }
+        .wiz-area { font-size: 18px !important; min-height: 140px; }
+        @keyframes wizIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+      `}</style>
+      <div style={{ maxWidth: 560, margin: "0 auto", minHeight: "100%", display: "flex", flexDirection: "column", padding: "max(16px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom))" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+          <div style={{ flex: 1, height: 6, borderRadius: 999, background: "var(--track)", overflow: "hidden" }}>
+            <div style={{ width: `${((passo + 1) / (ULTIMO + 1)) * 100}%`, height: "100%", background: "linear-gradient(90deg, var(--accent), var(--glow))", transition: "width 0.25s" }} />
+          </div>
+          <button onClick={onClose} aria-label="Fechar" style={{ background: "none", border: "none", padding: 6 }}>
+            <X size={22} color="var(--ink-soft)" />
+          </button>
+        </div>
+        <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
+          {passo < ULTIMO ? `Passo ${passo + 1} de 4` : "Conferir"} · {peca.tipo} <span style={{ fontFamily: "var(--mono)", color: "var(--accent)", fontWeight: 700 }}>{peca.codigo}</span>
+        </div>
+
+        <div key={passo} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 14, padding: "24px 0", animation: "wizIn 0.22s ease-out" }}>
+          {num && (
+            <>
+              <h2 style={{ fontFamily: "var(--display)", fontSize: 38, lineHeight: 1.05, textTransform: "uppercase" }}>{campo.titulo}</h2>
+              <div style={{ fontSize: 15, color: "var(--ink-soft)", lineHeight: 1.4 }}>{campo.dica}</div>
+              <input
+                ref={inputRef}
+                className="wiz-input"
+                value={formatFromDigits(campo.raw)}
+                onChange={(e) => campo.set(digitsFromInput(e.target.value))}
+                onKeyDown={(e) => e.key === "Enter" && avancar()}
+                inputMode="numeric"
+                placeholder="0,00"
+                style={{ ...inputStyle(), borderColor: tentou && !valido ? "var(--locked)" : "var(--line-strong)" }}
+              />
+              <div style={{ textAlign: "center", fontSize: 14, color: "var(--ink-soft)", marginTop: -6 }}>metros</div>
+              {tentou && !valido && <div style={{ textAlign: "center", color: "var(--locked)", fontSize: 14 }}>Informe um valor maior que zero para continuar.</div>}
+            </>
+          )}
+          {passo === 3 && (
+            <>
+              <h2 style={{ fontFamily: "var(--display)", fontSize: 38, lineHeight: 1.05, textTransform: "uppercase" }}>Alguma observação?</h2>
+              <div style={{ fontSize: 15, color: "var(--ink-soft)", lineHeight: 1.4 }}>Ex.: janela com parapeito, instalar por fora do vão. Se não tiver, toque em Pular.</div>
+              <textarea ref={inputRef} className="wiz-area" value={d.obs} onChange={(e) => d.setObs(e.target.value)} placeholder="Escreva aqui…" style={{ ...inputStyle(), resize: "vertical" }} />
+            </>
+          )}
+          {passo === ULTIMO && (
+            <>
+              <h2 style={{ fontFamily: "var(--display)", fontSize: 38, lineHeight: 1.05, textTransform: "uppercase" }}>Conferir medida</h2>
+              <div style={{ fontSize: 15, color: "var(--ink-soft)", lineHeight: 1.4 }}>Depois de salva, a medida fica travada e só o gestor consegue alterar.</div>
+              <div style={{ border: "1px solid var(--line-strong)", borderRadius: 14, overflow: "hidden", background: "var(--surface)" }}>
+                {linhas.map(([rot, val, i], k) => (
+                  <button key={rot} onClick={() => setPasso(i)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "14px 16px", background: "none", border: "none", borderTop: k ? "1px solid var(--line)" : "none", color: "var(--ink)", textAlign: "left" }}>
+                    <span style={{ color: "var(--ink-soft)", fontSize: 14 }}>{rot}</span>
+                    <span style={{ fontWeight: 700, fontSize: 16, fontFamily: i < 3 ? "var(--mono)" : "inherit", textAlign: "right", minWidth: 0, overflowWrap: "anywhere" }}>{val}</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12.5, color: "var(--ink-soft)", textAlign: "center" }}>Toque em uma linha para corrigir.</div>
+            </>
+          )}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {passo < ULTIMO ? (
+            <button onClick={avancar} style={{ ...primaryBtnStyle(!valido), marginTop: 0, width: "100%", padding: "16px", fontSize: 17 }}>
+              Continuar
+            </button>
+          ) : (
+            <button onClick={salvar} disabled={!podeSalvar} style={{ ...primaryBtnStyle(!podeSalvar), marginTop: 0, width: "100%", padding: "16px", fontSize: 17 }}>
+              <Check size={18} /> Salvar medição
+            </button>
+          )}
+          <div style={{ display: "flex", gap: 10 }}>
+            {passo > 0 && (
+              <button onClick={() => setPasso((p) => p - 1)} style={{ ...ghostBtnStyle, flex: 1, justifyContent: "center", padding: "12px" }}>
+                <ArrowLeft size={15} /> Voltar
+              </button>
+            )}
+            {(passo === 2 || passo === 3) && (
+              <button onClick={pular} style={{ ...ghostBtnStyle, flex: 1, justifyContent: "center", padding: "12px" }}>
+                Pular
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
