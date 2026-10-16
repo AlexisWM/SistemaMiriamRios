@@ -419,10 +419,19 @@ export async function alterarMinhaSenha(novaSenha) {
   if (error) throw error;
   return true;
 }
-// Exclusão definitiva: função Postgres `excluir_usuario` (supabase/excluir_usuario.sql).
+// Exclusão definitiva da conta: passa pela Edge Function `manage-user` (precisa
+// do privilégio de administrador para apagar o login de verdade).
 export async function excluirUsuario(id) {
-  const { error } = await supabase.rpc("excluir_usuario", { p_id: id });
-  if (error) throw error;
+  const { data, error } = await supabase.functions.invoke("manage-user", { body: { acao: "excluir", id } });
+  if (error) {
+    let msg = error.message;
+    try {
+      const j = await error.context.json();
+      if (j?.erro) msg = j.erro;
+    } catch (e) {}
+    throw new Error(msg);
+  }
+  if (data?.erro) throw new Error(data.erro);
   return true;
 }
 // Junta dois clientes em um: apaga o "removido" e grava os dados já combinados
@@ -445,6 +454,17 @@ export async function juntarClientes({ manterId, removerId, dados }) {
   const { error } = await supabase.from("clientes").update(row).eq("id", manterId);
   if (error) {
     console.error("juntarClientes/atualizar:", error.message);
+    return false;
+  }
+  return true;
+}
+
+// Exclusão definitiva do pedido (só Gestor/Gestor Master, pela RLS). Os
+// agendamentos do pedido somem junto (on delete cascade na tabela eventos).
+export async function excluirPedido(id) {
+  const { error } = await supabase.from("pedidos").delete().eq("id", id);
+  if (error) {
+    console.error("excluirPedido:", error.message);
     return false;
   }
   return true;
