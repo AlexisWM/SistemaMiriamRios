@@ -17,6 +17,9 @@ import {
   removerEvento,
   subscribeRealtime,
   loadPrecosOrcamento,
+  loadClientes,
+  registrarCliente,
+  salvarCliente,
 } from "./lib/db";
 import { supabase } from "./lib/supabaseClient";
 import {
@@ -1472,6 +1475,30 @@ function formatTelefone(raw) {
   const fim = resto.slice(5, 9);
   return `(${ddd}) ${primeiro}-${meio}${fim ? "-" + fim : ""}`;
 }
+/* Máscara de CPF 000.000.000-00 (ignora tudo que não é dígito). */
+function formatCPF(raw) {
+  const d = String(raw || "").replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+/* CPF é opcional; se preenchido, precisa ter 11 dígitos e dígitos verificadores válidos. */
+function cpfValido(raw) {
+  const d = String(raw || "").replace(/\D/g, "");
+  if (!d) return true;
+  if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
+  for (const t of [9, 10]) {
+    let soma = 0;
+    for (let i = 0; i < t; i++) soma += Number(d[i]) * (t + 1 - i);
+    const dv = ((soma * 10) % 11) % 10;
+    if (dv !== Number(d[t])) return false;
+  }
+  return true;
+}
+function canVerClientes(papel) {
+  return papel === "Gestor" || papel === "Gestor Master";
+}
 /* ------------------------------------------------------------
    COR DE DESTAQUE DO SISTEMA
    ------------------------------------------------------------
@@ -1975,6 +2002,7 @@ export default function App() {
       onOpenUserMenu={() => setShowUserMenu(true)}
       onOpenCalendario={() => setRoute({ screen: "calendario" })}
       onOpenKanban={() => setRoute({ screen: "kanban" })}
+      onOpenClientes={() => setRoute({ screen: "clientes" })}
       onOpenPainel={() => setRoute({ screen: "painel" })}
       onGoHome={() => setRoute({ screen: "lista" })}
       showHome={route.screen !== "lista"}
@@ -2095,6 +2123,10 @@ export default function App() {
         />
       )}
 
+      {route.screen === "clientes" && canVerClientes(session.papel) && (
+        <ClientesScreen usuarios={usuarios} onBack={() => setRoute({ screen: "lista" })} />
+      )}
+
       {route.screen === "painel" && canGerenciarUsuarios(session.papel) && (
         <PainelGestorScreen usuarios={usuarios} index={index} onBack={() => setRoute({ screen: "lista" })} />
       )}
@@ -2111,6 +2143,7 @@ function Shell({
   onOpenUserMenu,
   onOpenCalendario,
   onOpenKanban,
+  onOpenClientes,
   onOpenPainel,
   onGoHome,
   showHome,
@@ -2333,6 +2366,7 @@ function Shell({
           onGoHome={onGoHome}
           onOpenCalendario={onOpenCalendario}
           onOpenKanban={onOpenKanban}
+          onOpenClientes={onOpenClientes}
           onOpenPainel={onOpenPainel}
           onOpenUserMenu={onOpenUserMenu}
           onLogout={onLogout}
@@ -2474,6 +2508,7 @@ function Shell({
             onGoHome={onGoHome}
             onOpenCalendario={onOpenCalendario}
             onOpenKanban={onOpenKanban}
+            onOpenClientes={onOpenClientes}
             onOpenPainel={onOpenPainel}
             onOpenUserMenu={onOpenUserMenu}
             onLogout={onLogout}
@@ -2541,7 +2576,7 @@ function HeaderSearch({ value, onChange }) {
    da própria barra) = ícone + nome (230px). Logout sempre fixo no rodapé,
    nos dois estados.
    ============================================================ */
-function itensDoMenu(papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalendario }) {
+function itensDoMenu(papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalendario, onOpenClientes }) {
   const itens = [];
   if (canGerenciarUsuarios(papel)) {
     itens.push({ Icon: LayoutGrid, label: "Painel", onClick: onOpenPainel, telas: ["painel"] });
@@ -2551,13 +2586,16 @@ function itensDoMenu(papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalend
     itens.push({ Icon: BarChart3, label: "Funil", onClick: onOpenKanban, rotate: true, telas: ["kanban"] });
     itens.push({ Icon: CalendarDays, label: "Calendário", onClick: onOpenCalendario, telas: ["calendario"] });
   }
+  if (canVerClientes(papel)) {
+    itens.push({ Icon: UsersIcon, label: "Clientes", onClick: onOpenClientes, telas: ["clientes"] });
+  }
   return itens;
 }
 
 /* Menu horizontal do celular: arrasta pro lado, item ativo com barra de
    destaque. Só aparece em telas estreitas (ver .mobile-tabs no CSS). */
-function MobileTabs({ session, rota, onGoHome, onOpenCalendario, onOpenKanban, onOpenPainel, onOpenUserMenu, onLogout }) {
-  const itens = itensDoMenu(session.papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalendario });
+function MobileTabs({ session, rota, onGoHome, onOpenCalendario, onOpenKanban, onOpenClientes, onOpenPainel, onOpenUserMenu, onLogout }) {
+  const itens = itensDoMenu(session.papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalendario, onOpenClientes });
   return (
     <div className="mobile-tabs">
       {itens.map(({ Icon, label, onClick, rotate, telas }) => (
@@ -2578,7 +2616,7 @@ function MobileTabs({ session, rota, onGoHome, onOpenCalendario, onOpenKanban, o
   );
 }
 
-function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendario, onOpenKanban, onOpenPainel, onOpenUserMenu, onLogout, rota }) {
+function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendario, onOpenKanban, onOpenClientes, onOpenPainel, onOpenUserMenu, onLogout, rota }) {
   const papel = session.papel;
   const ir = (fn) => {
     onCollapse();
@@ -2588,7 +2626,7 @@ function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendar
   // Ordem: Painel (só Gestor/Gestor Master, primeiro) → Pedidos → Funil
   // (gráfico de barras "de cabeça pra baixo", lembrando um funil) →
   // Calendário (último).
-  const itens = itensDoMenu(papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalendario });
+  const itens = itensDoMenu(papel, { onOpenPainel, onGoHome, onOpenKanban, onOpenCalendario, onOpenClientes });
 
   return (
     <nav className={open ? "nav-rail expanded" : "nav-rail collapsed"}>
@@ -3957,6 +3995,171 @@ function AgendarForm({ index = [], eventos = [], papel, nome, pedidoPreset, data
 }
 
 /* ============================================================
+   CLIENTES — só Gestor/Gestor Master. Lista com busca por CPF,
+   telefone ou nome; cadastro automático ao criar pedido, ou manual.
+   ============================================================ */
+function ClientesScreen({ usuarios, onBack }) {
+  const [clientes, setClientes] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [busca, setBusca] = useState("");
+  const [editando, setEditando] = useState(null); // null | {} (novo) | cliente
+
+  const recarregar = useCallback(async () => {
+    setClientes(await loadClientes());
+    setCarregando(false);
+  }, []);
+  useEffect(() => {
+    recarregar();
+  }, [recarregar]);
+
+  const semAcento = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const q = semAcento(busca.trim());
+  const qDigitos = busca.replace(/\D/g, "");
+  const filtrados = !q
+    ? clientes
+    : clientes.filter(
+        (c) =>
+          semAcento(c.nome).includes(q) ||
+          (qDigitos.length > 0 && (c.cpf.includes(qDigitos) || c.telefone.replace(/\D/g, "").includes(qDigitos)))
+      );
+
+  return (
+    <div style={{ paddingTop: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+        <h1 style={{ fontSize: 30, lineHeight: 1.05 }}>Clientes</h1>
+        {!editando && (
+          <button onClick={() => setEditando({})} style={ghostBtnStyle}>
+            <Plus size={15} /> Novo cliente
+          </button>
+        )}
+      </div>
+
+      {editando && (
+        <div className="form-narrow">
+          <ClienteForm
+            cliente={editando}
+            usuarios={usuarios}
+            onCancel={() => setEditando(null)}
+            onSaved={async () => {
+              setEditando(null);
+              await recarregar();
+            }}
+          />
+        </div>
+      )}
+
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <Search size={16} color="var(--ink-soft)" style={{ position: "absolute", left: 12, top: 12 }} />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por CPF, telefone ou nome"
+          style={{ ...inputStyle(), paddingLeft: 36 }}
+        />
+      </div>
+
+      {carregando ? (
+        <div style={emptyStateStyle}>Carregando clientes…</div>
+      ) : filtrados.length === 0 ? (
+        <div style={emptyStateStyle}>{q ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</div>
+      ) : (
+        <div style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
+          <div style={{ minWidth: 640 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1.3fr 1.3fr 1.4fr", gap: 12, padding: "10px 16px", fontSize: 11.5, color: "var(--ink-soft)", borderBottom: "1px solid var(--line-strong)" }}>
+              <span>Nome</span>
+              <span>CPF</span>
+              <span>Telefone</span>
+              <span>Vendedor responsável</span>
+            </div>
+            {filtrados.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setEditando(c)}
+                style={{ display: "grid", gridTemplateColumns: "2fr 1.3fr 1.3fr 1.4fr", gap: 12, width: "100%", textAlign: "left", padding: "12px 16px", color: "var(--ink)", fontSize: 14, borderBottom: "1px solid var(--line)" }}
+              >
+                <span style={{ fontWeight: 600 }}>{c.nome}</span>
+                <span style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{formatCPF(c.cpf) || "—"}</span>
+                <span style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{formatTelefone(c.telefone) || "—"}</span>
+                <span>{c.vendedor || "—"}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClienteForm({ cliente, usuarios, onCancel, onSaved }) {
+  const [nome, setNome] = useState(cliente.nome || "");
+  const [cpf, setCpf] = useState(formatCPF(cliente.cpf || ""));
+  const [telefone, setTelefone] = useState(formatTelefone(cliente.telefone || ""));
+  const [endereco, setEndereco] = useState(cliente.endereco || "");
+  const [vendedor, setVendedor] = useState(cliente.vendedor || "");
+  const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState("");
+  const vendedores = usuarios
+    .filter((u) => ["Vendedor", "Gestor", "Gestor Master"].includes(u.papel) && u.ativo !== false)
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+  const canSave = nome.trim().length > 0 && cpfValido(cpf);
+
+  const salvar = async () => {
+    if (!canSave || saving) return;
+    setSaving(true);
+    setErro("");
+    const r = await salvarCliente({ id: cliente.id, nome, cpf, telefone, endereco, vendedor });
+    setSaving(false);
+    if (!r.ok) {
+      const quem = r.nomeExistente ? ` (${r.nomeExistente})` : "";
+      setErro(
+        r.duplicado
+          ? r.motivo === "telefone"
+            ? `Já existe um cliente com esse telefone${quem}. Para não duplicar, o cadastro não foi criado.`
+            : r.motivo === "nome"
+            ? `Já existe um cliente com esse nome e sem telefone ou CPF${quem}.`
+            : `Já existe um cliente com esse CPF${quem}.`
+          : "Não foi possível salvar. Tente novamente."
+      );
+      return;
+    }
+    onSaved();
+  };
+
+  return (
+    <div style={{ ...cardStyle, marginBottom: 16 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 12 }}>{cliente.id ? "Editar cliente" : "Novo cliente"}</div>
+      <label style={labelStyle}>Nome do cliente</label>
+      <input value={nome} onChange={(e) => setNome(e.target.value)} style={inputStyle()} />
+      <label style={{ ...labelStyle, marginTop: 10 }}>CPF</label>
+      <input value={cpf} onChange={(e) => setCpf(formatCPF(e.target.value))} style={inputStyle()} inputMode="numeric" placeholder="000.000.000-00" />
+      {cpf && !cpfValido(cpf) && <div style={{ ...missingTextStyle, color: "var(--locked)" }}>CPF inválido. Confira os números.</div>}
+      <label style={{ ...labelStyle, marginTop: 10 }}>Telefone</label>
+      <input value={telefone} onChange={(e) => setTelefone(formatTelefone(e.target.value))} style={inputStyle()} inputMode="numeric" placeholder="(00) 0-0000-0000" />
+      <label style={{ ...labelStyle, marginTop: 10 }}>Endereço</label>
+      <input value={endereco} onChange={(e) => setEndereco(e.target.value)} style={inputStyle()} />
+      <label style={{ ...labelStyle, marginTop: 10 }}>Vendedor responsável</label>
+      <select value={vendedor} onChange={(e) => setVendedor(e.target.value)} style={inputStyle()}>
+        <option value="">Selecione o vendedor…</option>
+        {vendedores.map((u) => (
+          <option key={u.id} value={u.nome}>
+            {u.nome} ({u.papel})
+          </option>
+        ))}
+      </select>
+      {erro && <div style={{ ...missingTextStyle, color: "var(--locked)" }}>{erro}</div>}
+      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        <button onClick={salvar} disabled={!canSave || saving} style={{ ...ghostBtnStyle, opacity: canSave ? 1 : 0.5 }}>
+          <Check size={14} /> {saving ? "Salvando…" : "Salvar"}
+        </button>
+        <button onClick={onCancel} style={ghostBtnStyle}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    PEDIDOS LIST
    ============================================================ */
 function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated }) {
@@ -4044,6 +4247,7 @@ function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated })
 
 function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
   const [cliente, setCliente] = useState("");
+  const [cpf, setCpf] = useState("");
   const [telefone, setTelefone] = useState("");
   const [endereco, setEndereco] = useState("");
   // Vendedor é seleção, não texto livre: Vendedor sempre fica com o próprio
@@ -4057,7 +4261,7 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
     .filter((u) => ["Vendedor", "Gestor", "Gestor Master"].includes(u.papel) && u.ativo !== false)
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
-  const canSave = cliente.trim().length > 0;
+  const canSave = cliente.trim().length > 0 && cpfValido(cpf);
 
   const handleCreate = async () => {
     if (!canSave || saving) return;
@@ -4067,6 +4271,7 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
       id: uid(),
       numero,
       cliente: cliente.trim(),
+      cpf: cpf.replace(/\D/g, ""),
       telefone: telefone.trim(),
       endereco: endereco.trim(),
       vendedor: (vendedorTravado ? nome : vendedor) || "",
@@ -4075,6 +4280,8 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
       ambientes: [],
     };
     await savePedido(pedido);
+    // Cadastro automático do cliente (não bloqueia o pedido se falhar).
+    registrarCliente({ nome: pedido.cliente, cpf: pedido.cpf, telefone: pedido.telefone, endereco: pedido.endereco, vendedor: pedido.vendedor });
     const idx = await loadIndex();
     idx.push({
       id: pedido.id,
@@ -4094,6 +4301,15 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
       <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 12 }}>Novo pedido</div>
       <label style={labelStyle}>Nome do cliente</label>
       <input value={cliente} onChange={(e) => setCliente(e.target.value)} style={inputStyle()} placeholder="Ex.: João da Silva" />
+      <label style={{ ...labelStyle, marginTop: 10 }}>CPF</label>
+      <input
+        value={cpf}
+        onChange={(e) => setCpf(formatCPF(e.target.value))}
+        style={inputStyle()}
+        inputMode="numeric"
+        placeholder="000.000.000-00"
+      />
+      {cpf && !cpfValido(cpf) && <div style={{ ...missingTextStyle, color: "var(--locked)" }}>CPF inválido. Confira os números.</div>}
       <label style={{ ...labelStyle, marginTop: 10 }}>Telefone</label>
       <input
         value={telefone}
@@ -4605,6 +4821,7 @@ function PedidoDetail({
    ============================================================ */
 function EditarPedidoInfo({ pedido, papel, usuarios, onChange, onCancel }) {
   const [cliente, setCliente] = useState(pedido.cliente || "");
+  const [cpf, setCpf] = useState(formatCPF(pedido.cpf || ""));
   const [telefone, setTelefone] = useState(pedido.telefone || "");
   const [endereco, setEndereco] = useState(pedido.endereco || "");
   const [vendedor, setVendedor] = useState(pedido.vendedor || "");
@@ -4616,13 +4833,14 @@ function EditarPedidoInfo({ pedido, papel, usuarios, onChange, onCancel }) {
     .filter((u) => ["Vendedor", "Gestor", "Gestor Master"].includes(u.papel) && u.ativo !== false)
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
-  const canSalvar = cliente.trim().length > 0;
+  const canSalvar = cliente.trim().length > 0 && cpfValido(cpf);
 
   const handleSalvar = async () => {
     if (!canSalvar || saving) return;
     setSaving(true);
     const patch = {
       cliente: cliente.trim(),
+      cpf: cpf.replace(/\D/g, ""),
       telefone: telefone.trim(),
     };
     if (podeEditarEndereco) patch.endereco = endereco.trim();
@@ -4639,6 +4857,15 @@ function EditarPedidoInfo({ pedido, papel, usuarios, onChange, onCancel }) {
       <label style={labelStyle}>Nome do cliente</label>
       <input value={cliente} onChange={(e) => setCliente(e.target.value)} style={inputStyle()} />
 
+      <label style={{ ...labelStyle, marginTop: 10 }}>CPF</label>
+      <input
+        value={cpf}
+        onChange={(e) => setCpf(formatCPF(e.target.value))}
+        style={inputStyle()}
+        inputMode="numeric"
+        placeholder="000.000.000-00"
+      />
+      {cpf && !cpfValido(cpf) && <div style={{ ...missingTextStyle, color: "var(--locked)" }}>CPF inválido. Confira os números.</div>}
       <label style={{ ...labelStyle, marginTop: 10 }}>Telefone</label>
       <input
         value={telefone}
