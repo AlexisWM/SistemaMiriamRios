@@ -2668,6 +2668,20 @@ function Shell({
              acontece sempre que a fonte do campo fica abaixo de 16px. */
           input, select, textarea { font-size: 16px !important; }
         }
+
+        /* Celular: letras maiores. Quase todo o texto tem tamanho "inline"
+           pequeno (10–14px); aqui cada faixa sobe um degrau pra leitura
+           confortável. Vale também pras janelas que abrem por cima. */
+        @media (max-width: 640px) {
+          [style*="font-size: 10px"], [style*="font-size: 10.5px"] { font-size: 12.5px !important; }
+          [style*="font-size: 11px"], [style*="font-size: 11.5px"] { font-size: 13.5px !important; }
+          [style*="font-size: 12px"], [style*="font-size: 12.5px"] { font-size: 14.5px !important; }
+          [style*="font-size: 13px"], [style*="font-size: 13.5px"] { font-size: 15.5px !important; }
+          [style*="font-size: 14px"], [style*="font-size: 14.5px"] { font-size: 16px !important; }
+          [style*="font-size: 15px"] { font-size: 17px !important; }
+          .app-content button { min-height: 40px; }
+          .app-content label > span:first-child { line-height: 1.3; }
+        }
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
       `}</style>
 
@@ -6196,7 +6210,7 @@ function AmbienteAccordion({ ambiente, open, onToggle, papel, nome, onAddPeca, o
         }}
       >
         <span style={{ textAlign: "left", minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 16, fontWeight: 700 }}>{ambiente.nome}</span>
+          <span style={{ display: "block", fontSize: 18, fontWeight: 700 }}>{ambiente.nome}</span>
           <span style={{ display: "block", fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
             {count} {count === 1 ? "peça" : "peças"}
             {count > 0 && ` · ${salvas} ${salvas === 1 ? "medida salva" : "medidas salvas"}`}
@@ -6376,9 +6390,12 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
     background: "var(--surface)",
   };
 
+  const acoesOrc = canEditarOrcamento(papel) ? <OrcCopiarColar peca={peca} onUpdatePeca={onUpdate} /> : null;
+
   // Medida salva: a linha inteira abre a ficha completa da peça.
   if (peca.locked) {
     return (
+      <div>
       <button
         onClick={onOpen}
         title="Abrir ficha da peça"
@@ -6389,11 +6406,13 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
         <span style={{ ...statusBadgeStyle(corSituacao), fontSize: 11 }}>{situacao}</span>
         <span style={{ flex: 1 }} />
         <ChevronRight size={16} color="var(--ink-soft)" />
-        <span style={{ flexBasis: "100%", display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
-          <span style={{ fontWeight: 600 }}>{medidaTxt}</span>
-          {canVerValores(papel) && peca.valor > 0 && <span style={{ fontFamily: "var(--mono)", fontSize: 13 }}>{fmtValor(peca.valor)}</span>}
+        <span style={{ flexBasis: "100%", display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, fontSize: 17 }}>
+          <span style={{ fontWeight: 700 }}>{medidaTxt}</span>
+          {canVerValores(papel) && peca.valor > 0 && <span style={{ fontFamily: "var(--mono)", fontSize: 15 }}>{fmtValor(peca.valor)}</span>}
         </span>
       </button>
+      {acoesOrc}
+      </div>
     );
   }
 
@@ -6444,6 +6463,7 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
       ) : (
         <div style={{ marginTop: 6, fontSize: 12.5, color: "var(--ink-soft)" }}>Aguardando a medição.</div>
       )}
+      {acoesOrc}
     </div>
   );
 }
@@ -7445,6 +7465,7 @@ function AberturaIcone({ folhas }) {
    app; as medidas da peça de destino não mudam e o cálculo refaz os valores. */
 let orcamentoCopiado = null;
 const CHAVE_ORC_COPIADO = "orcamentoCopiadoV1";
+const ouvintesOrcCopiado = new Set();
 function lerOrcamentoCopiado() {
   if (orcamentoCopiado) return orcamentoCopiado;
   try {
@@ -7455,45 +7476,70 @@ function lerOrcamentoCopiado() {
   }
   return orcamentoCopiado;
 }
-function OrcCopiarColar({ peca, onUpdatePeca, campo = "orcamento" }) {
+// Qual campo guarda o orçamento da peça (cortina ou persiana), se já tem um.
+function campoOrcamentoDaPeca(peca) {
+  if (!peca.modelo) return null;
+  if (peca.produto === "Persiana") return "orcamentoPersiana";
+  if (peca.produto === "Cortina") return "orcamento";
+  return null;
+}
+// Botões Copiar / Colar orçamento — ficam na linha da peça, ANTES de abrir a ficha.
+function OrcCopiarColar({ peca, onUpdatePeca }) {
   const [, forcar] = useState(0);
-  const [aviso, setAviso] = useState("");
+  useEffect(() => {
+    const f = () => forcar((n) => n + 1);
+    ouvintesOrcCopiado.add(f);
+    return () => ouvintesOrcCopiado.delete(f);
+  }, []);
   const copiado = lerOrcamentoCopiado();
-  const compativel = copiado && copiado.produto === peca.produto && copiado.modelo === peca.modelo && copiado.campo === campo && copiado.codigo !== peca.codigo;
+  const campoOrigem = campoOrcamentoDaPeca(peca);
+  // Só cola em peça ainda sem produto, ou do mesmo produto/modelo.
+  const compativel =
+    copiado &&
+    copiado.codigo !== peca.codigo &&
+    (!peca.produto || (copiado.produto === peca.produto && (!peca.modelo || copiado.modelo === peca.modelo)));
+  if (!campoOrigem && !compativel) return null;
   const copiar = () => {
     orcamentoCopiado = {
       produto: peca.produto,
       modelo: peca.modelo,
       codigo: peca.codigo,
-      campo,
+      campo: campoOrigem,
       vaiSuporte: peca.vaiSuporte ?? null,
-      orcamento: JSON.parse(JSON.stringify(peca[campo] || (campo === "orcamento" ? orcamentoPadrao() : orcamentoPersianaPadrao()))),
+      orcamento: JSON.parse(
+        JSON.stringify(peca[campoOrigem] || (campoOrigem === "orcamento" ? orcamentoPadrao() : orcamentoPersianaPadrao()))
+      ),
     };
     try {
       sessionStorage.setItem(CHAVE_ORC_COPIADO, JSON.stringify(orcamentoCopiado));
     } catch (e) {
       /* ok */
     }
-    setAviso(`Orçamento de ${peca.codigo} copiado.`);
-    forcar((n) => n + 1);
+    ouvintesOrcCopiado.forEach((f) => f());
   };
   const colar = () => {
     const novo = JSON.parse(JSON.stringify(copiado.orcamento));
     if (novo.suportes) novo.suportes = novo.suportes.map((x) => ({ ...x, id: uid() }));
-    onUpdatePeca({ [campo]: novo, ...(copiado.vaiSuporte != null ? { vaiSuporte: copiado.vaiSuporte } : {}) });
-    setAviso(`Orçamento de ${copiado.codigo} colado — confira as medidas e quantidades.`);
+    onUpdatePeca({
+      produto: copiado.produto,
+      modelo: copiado.modelo,
+      [copiado.campo]: novo,
+      ...(copiado.vaiSuporte != null ? { vaiSuporte: copiado.vaiSuporte } : {}),
+    });
   };
+  const btn = { ...ghostBtnStyle, width: "auto", padding: "8px 12px", fontSize: 13 };
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-      <button onClick={copiar} style={{ ...ghostBtnStyle, width: "auto", padding: "5px 10px", fontSize: 12 }}>
-        <Copy size={13} /> Copiar orçamento
-      </button>
-      {compativel && (
-        <button onClick={colar} style={{ ...ghostBtnStyle, width: "auto", padding: "5px 10px", fontSize: 12 }}>
-          <ClipboardPaste size={13} /> Colar de {copiado.codigo}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+      {campoOrigem && (
+        <button onClick={copiar} style={btn}>
+          <Copy size={14} /> {copiado && copiado.codigo === peca.codigo ? "Orçamento copiado ✓" : "Copiar orçamento"}
         </button>
       )}
-      {aviso && <span style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{aviso}</span>}
+      {compativel && (
+        <button onClick={colar} style={{ ...btn, borderColor: "var(--accent)", color: "var(--accent)" }}>
+          <ClipboardPaste size={14} /> Colar orçamento de {copiado.codigo}
+        </button>
+      )}
     </div>
   );
 }
@@ -7569,7 +7615,6 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento, onUpdatePeca }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {editar && <OrcCopiarColar peca={peca} onUpdatePeca={onUpdatePeca} />}
       {peca.modelo === "Trilho suíço" && editar && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <label style={{ display: "block" }}>
@@ -8219,7 +8264,6 @@ function FichaOrcamentoPersiana({ peca, calc, editar, onUpdate, onUpdatePeca }) 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {editar && onUpdatePeca && <OrcCopiarColar peca={peca} onUpdatePeca={onUpdatePeca} campo="orcamentoPersiana" />}
       {modelo === "Horizontal" && (
         <label style={{ display: "block" }}>
           <span style={labelStyle}>Espessura da lâmina</span>
