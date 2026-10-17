@@ -1099,6 +1099,8 @@ const TAB = {
   trilhoPainel: { 2: 82, 3: 96, 4: 105 },
   motorRomanaExtra: 120,
 };
+// Cores disponíveis para Bandô normal e Guia Niveladora (Rolô e Stripe).
+export const CORES_ACESSORIO_PERSIANA = ["Cinza", "Marrom", "Preto", "Branco", "Bege"];
 export const MODELOS_PERSIANA_COM_ORCAMENTO = ["Horizontal", "Vertical", "Rolo", "Romana", "Cascade", "Stripe", "Painel", "Celular"];
 
 const arred = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -1195,7 +1197,9 @@ const OPCOES = {
     { id: "guiaLateral", rotulo: "Guia lateral (o par)", tipo: "ml-alt", valor: 198.4 },
     { id: "box70", rotulo: "Caixa Box 70 branca (altura máx. 1,40 m)", tipo: "ml-lar", valor: 422, altMax: 1.4, excl: "box" },
     { id: "box90", rotulo: "Caixa Box 90 branca (altura máx. 2,10 m)", tipo: "ml-lar", valor: 498, altMax: 2.1, excl: "box" },
+    { id: "bandoNormal", rotulo: "Bandô normal", tipo: "ml-lar", valor: null, cor: true, aDefinir: true },
     { id: "skyline", rotulo: "Bandô Skyline (só motorizada, tubo 50 mm)", tipo: "ml-lar", valor: 570 },
+    { id: "guiaNiveladora", rotulo: "Guia Niveladora (o par)", tipo: "ml-alt", valor: null, cor: true, aDefinir: true },
     { id: "reducaoPeso", rotulo: "Comando com redução de peso (indicado acima de 2,90 m²)", tipo: "fixo", valor: 25 },
     { id: "comandoPlus", rotulo: "Comando Plus (indicado acima de 5 m²)", tipo: "fixo", valor: 65 },
     { id: "emL", rotulo: "Persiana em L com bandô e corte chanfrado", tipo: "pct", valor: 20 },
@@ -1207,6 +1211,8 @@ const OPCOES = {
   ],
   Cascade: [],
   Stripe: [
+    { id: "bandoNormal", rotulo: "Bandô normal", tipo: "ml-lar", valor: null, cor: true, aDefinir: true },
+    { id: "guiaNiveladora", rotulo: "Guia Niveladora (o par)", tipo: "ml-alt", valor: null, cor: true, aDefinir: true },
     { id: "reducaoPeso", rotulo: "Comando com redução de peso", tipo: "fixo", valor: 25 },
     { id: "comandoPlus", rotulo: "Comando Plus", tipo: "fixo", valor: 65 },
   ],
@@ -1294,7 +1300,7 @@ export function aceitaMotor(modelo) {
 }
 
 export function orcamentoPersianaPadrao() {
-  return { linha: null, variante: null, item: null, opcoes: {}, qtd: {}, motor: null, controle: null, acessorios: {}, extra: null };
+  return { linha: null, variante: null, item: null, opcoes: {}, qtd: {}, cores: {}, dividir: false, motor: null, controle: null, acessorios: {}, extra: null };
 }
 export function opcaoAtiva(modelo, orc, op) {
   const v = orc.opcoes?.[op.id];
@@ -1315,11 +1321,16 @@ export function calcularOrcamentoPersiana(peca) {
   if (!MODELOS_PERSIANA_COM_ORCAMENTO.includes(modelo)) return { usa: false };
 
   const orc = { ...orcamentoPersianaPadrao(), ...(peca.orcamentoPersiana || {}) };
-  const larg = peca.largura > 0 ? peca.largura : null;
+  const largTotal = peca.largura > 0 ? peca.largura : null;
   const alt = peca.altura > 0 ? peca.altura : null;
   const itens = listarItensPersiana(modelo, orc);
   const item = itens.find((i) => i.id === orc.item) || null;
   const regras = regrasDe(modelo, orc, item);
+  // Largura acima do máximo da fábrica: dá pra dividir em 2 persianas
+  // iguais (cada uma com metade da largura, cobradas separadamente).
+  const podeDividir = !!regras.larMax && largTotal != null && largTotal > regras.larMax + 1e-9;
+  const n = podeDividir && orc.dividir ? 2 : 1;
+  const larg = largTotal != null ? largTotal / n : null;
   const faltas = [];
   const avisos = [];
   const linhas = [];
@@ -1330,6 +1341,11 @@ export function calcularOrcamentoPersiana(peca) {
   else if (item.preco == null) avisos.push(item.aDefinir ? "Esta coleção está com o preço ilegível na tabela — confirme com o fornecedor e digite o valor manualmente." : "Sem preço na tabela para esta combinação.");
   if (larg == null) faltas.push("a largura");
   if (alt == null) faltas.push("a altura");
+
+  // Bandô normal / Guia Niveladora: a cor é obrigatória quando marcados.
+  opcoesDoModelo(modelo, orc).forEach((op) => {
+    if (op.cor && opcaoAtiva(modelo, orc, op) && !orc.cores?.[op.id]) faltas.push(`a cor de "${op.rotulo.split(" (")[0]}"`);
+  });
 
   const pronto = faltas.length === 0 && item && item.preco != null;
   let areaReal = null;
@@ -1351,13 +1367,16 @@ export function calcularOrcamentoPersiana(peca) {
     const fator = item.st ? 1 + CONFIG.st : 1;
     const base = arred(areaCobrada * item.preco * fator);
     const cobrouMinimo = areaCobrada > areaReal + 1e-9;
-    linhas.push({
+    // Com a largura dividida, cada linha "por persiana" vale 2×.
+    const empurra = (l) =>
+      linhas.push(n > 1 ? { ...l, detalhe: `${n} persianas${l.detalhe ? " · " + l.detalhe : ""}`, valor: arred(l.valor * n) } : l);
+    empurra({
       rotulo: "Persiana",
-      detalhe: `${fmt2(areaCobrada)} m²${cobrouMinimo ? " (mínimo cobrado)" : ""} × ${fmtBRL(arred(item.preco * fator))}`,
+      detalhe: `${fmt2(areaCobrada)} m²${cobrouMinimo ? " (mínimo cobrado)" : ""} × ${fmtBRL(arred(item.preco * fator))}${n > 1 ? ` · cada uma com ${fmt2(larg)} m` : ""}`,
       valor: base,
     });
     const baseSemTaxa = areaCobrada * item.preco;
-    const pctLinha = (rotulo, pct) => linhas.push({ rotulo, detalhe: `+${fmtNum(pct)}%`, valor: arred((baseSemTaxa * pct * fator) / 100) });
+    const pctLinha = (rotulo, pct) => empurra({ rotulo, detalhe: `+${fmtNum(pct)}%`, valor: arred((baseSemTaxa * pct * fator) / 100) });
 
     // Acréscimos automáticos por largura
     if (modelo === "Rolo" || modelo === "Stripe") {
@@ -1373,6 +1392,13 @@ export function calcularOrcamentoPersiana(peca) {
       if (op.requer && !opcaoAtiva(modelo, orc, OPCOES[modelo].find((o) => o.id === op.requer))) return;
       if (!opcaoAtiva(modelo, orc, op)) return;
       const v = typeof op.valor === "function" ? op.valor(medidas) : op.valor;
+      const corTxt = op.cor && orc.cores?.[op.id] ? ` — ${orc.cores[op.id]}` : "";
+      if (v == null && op.aDefinir) {
+        // Item ainda sem preço na tabela: entra na lista com valor zero e avisa.
+        linhas.push({ rotulo: op.rotulo.split(" (")[0] + corTxt, detalhe: "preço a definir", valor: 0 });
+        avisos.push(`"${op.rotulo.split(" (")[0]}" ainda está sem preço cadastrado — o total não inclui este item.`);
+        return;
+      }
       if (v == null) {
         avisos.push(`"${op.rotulo}" não tem preço para estas medidas — confira a tabela.`);
         return;
@@ -1382,9 +1408,9 @@ export function calcularOrcamentoPersiana(peca) {
       else if (op.tipo === "qtd-pct") {
         const q = Math.max(0, parseInt(orc.qtd?.[op.id], 10) || 0);
         if (q > 0) pctLinha(`${op.rotulo.split(" (")[0]} ×${q}`, v * q);
-      } else if (op.tipo === "fixo") linhas.push({ rotulo: op.rotulo.split(" (")[0], detalhe: "", valor: arred(v) });
-      else if (op.tipo === "ml-lar") linhas.push({ rotulo: op.rotulo.split(" (")[0], detalhe: `${fmt2(larg)} m × ${fmtBRL(v)}`, valor: arred(larg * v) });
-      else if (op.tipo === "ml-alt") linhas.push({ rotulo: op.rotulo.split(" (")[0], detalhe: `${fmt2(alt)} m × ${fmtBRL(v)}`, valor: arred(alt * v) });
+      } else if (op.tipo === "fixo") empurra({ rotulo: op.rotulo.split(" (")[0] + corTxt, detalhe: "", valor: arred(v) });
+      else if (op.tipo === "ml-lar") empurra({ rotulo: op.rotulo.split(" (")[0] + corTxt, detalhe: `${fmt2(larg)} m × ${fmtBRL(v)}`, valor: arred(larg * v) });
+      else if (op.tipo === "ml-alt") empurra({ rotulo: op.rotulo.split(" (")[0] + corTxt, detalhe: `${fmt2(alt)} m × ${fmtBRL(v)}`, valor: arred(alt * v) });
     });
 
     // Motor + controle
@@ -1393,11 +1419,11 @@ export function calcularOrcamentoPersiana(peca) {
       if (motor.preco == null) avisos.push(`${motor.rotulo}: preço ilegível na tabela — digite em "Outros valores".`);
       else {
         const extraRomana = modelo === "Romana" && motor.romanaExtra ? TAB.motorRomanaExtra : 0;
-        linhas.push({ rotulo: motor.rotulo, detalhe: extraRomana ? `inclui +${fmtBRL(extraRomana)} p/ Romana` : "", valor: arred(motor.preco + extraRomana) });
+        empurra({ rotulo: motor.rotulo, detalhe: extraRomana ? `inclui +${fmtBRL(extraRomana)} p/ Romana` : "", valor: arred(motor.preco + extraRomana) });
       }
       if (motor.areaMax && areaReal > motor.areaMax) avisos.push(`Motor indicado para até ${fmtNum(motor.areaMax)} m².`);
       acessoriosDoMotor(motor.id).forEach((a) => {
-        if (orc.acessorios?.[a.id]) linhas.push({ rotulo: a.rotulo, detalhe: "", valor: a.preco });
+        if (orc.acessorios?.[a.id]) empurra({ rotulo: a.rotulo, detalhe: "", valor: a.preco });
       });
     }
     const controle = CONTROLES.find((c) => c.id === orc.controle);
@@ -1408,7 +1434,7 @@ export function calcularOrcamentoPersiana(peca) {
     total = arred(linhas.reduce((s, l) => s + l.valor, 0));
   }
 
-  return { usa: true, pronto: !!pronto, faltas, avisos, linhas, total, areaReal, areaCobrada, item, itens, orc };
+  return { usa: true, pronto: !!pronto, faltas, avisos, linhas, total, areaReal, areaCobrada, item, itens, orc, podeDividir, dividido: n > 1, larguraPorPersiana: larg, larguraMaxima: regras.larMax || null };
 }
 
 function fmt2(n) {
