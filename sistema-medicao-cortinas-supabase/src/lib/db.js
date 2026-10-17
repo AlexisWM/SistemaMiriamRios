@@ -100,6 +100,34 @@ export async function loadIndex() {
   return data.map(rowParaIndexItem);
 }
 
+/* Histórico de vendas (tabela `vendas`, mantida por gatilho no banco — ver
+   supabase/historico.sql). Devolve null se a tabela ainda não existir (aí o
+   app volta a somar abrindo pedido por pedido). */
+export async function loadVendasHistorico() {
+  const linhas = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase
+      .from("vendas")
+      .select("peca_id,pedido_numero,cliente,ambiente,codigo,produto,vendedor,valor,vendido_em,disponivel_em,instalado_em")
+      .order("vendido_em", { ascending: false })
+      .range(de, de + 999);
+    if (error) return null;
+    linhas.push(...data);
+    if (data.length < 1000) break;
+  }
+  return linhas;
+}
+// Valor de cada orçamento no dia em que foi marcado como perdido (por pedido).
+export async function loadPerdidosHistorico() {
+  const { data, error } = await supabase.from("pedidos_perdidos").select("pedido_id,valor");
+  if (error) return null;
+  const mapa = {};
+  data.forEach((r) => {
+    mapa[r.pedido_id] = Number(r.valor);
+  });
+  return mapa;
+}
+
 // A tabela `pedidos` já é a fonte de verdade e loadIndex() sempre lê direto
 // dela — não existe mais um "índice" separado para manter sincronizado.
 // Mantido como no-op para não exigir mudar quem já chamava saveIndex(...).
