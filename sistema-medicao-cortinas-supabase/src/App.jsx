@@ -33,6 +33,7 @@ import {
   calcularOrcamentoPersiana,
   aplicarPrecosPersiana,
   orcamentoPersianaPadrao,
+  CORES_ACESSORIO_PERSIANA,
   opcoesDoModelo,
   opcaoAtiva,
   precisaVariante,
@@ -78,6 +79,8 @@ import {
   Moon,
   Camera,
   List as ListIcon,
+  Copy,
+  ClipboardPaste,
 } from "lucide-react";
 
 /* ============================================================
@@ -203,7 +206,15 @@ const ESPACAMENTOS_CORDAO_WAVE = ["Wave 5cm", "Wave 6,5cm"];
 // reto franzido por uma fita passada por dentro (como um elástico), sem
 // cordão/clips/fita fácil — o deslizante do franzido é costurado direto
 // na cortina.
-const ACABAMENTOS_CORTINA = ["Wave", "Franzido"];
+const ACABAMENTOS_CORTINA = ["Wave", "Franzido", "Prega"];
+// Tipos de Prega — só vão escritos na ficha de produção (a fábrica precisa
+// saber qual é). "Outra" abre um campo de texto livre.
+const TIPOS_PREGA = ["Macho", "Fêmea", "Favos", "Outra"];
+function textoPrega(c) {
+  if (!c || c.acabamento !== "Prega") return null;
+  if (c.pregaTipo === "Outra") return c.pregaOutra && c.pregaOutra.trim() ? `Prega ${c.pregaOutra.trim()}` : "Prega (tipo a informar)";
+  return c.pregaTipo ? `Prega ${c.pregaTipo}` : "Prega (tipo a informar)";
+}
 // Abertura da peça (Trilho suíço, Tubo Vaza ou Varão): quantas folhas a
 // cortina se divide fisicamente — escolhida uma vez pra peça inteira,
 // igual Material/Cor. Interfere direto no cálculo de Deslizante/Clip/
@@ -214,8 +225,8 @@ const ACABAMENTOS_CORTINA = ["Wave", "Franzido"];
 const ABERTURAS_CORTINA = [
   { chave: "inteira", label: "Inteira", folhas: 1 },
   { chave: "aberta_meio", label: "Aberta ao Meio", folhas: 2 },
-  { chave: "4_aberturas", label: "4 Aberturas", folhas: 3 },
-  { chave: "5_aberturas", label: "5 Aberturas", folhas: 4 },
+  { chave: "4_aberturas", label: "3 Folhas", folhas: 3 },
+  { chave: "5_aberturas", label: "4 Folhas", folhas: 4 },
 ];
 function folhasDaAbertura(abertura) {
   const item = ABERTURAS_CORTINA.find((a) => a.chave === abertura);
@@ -255,7 +266,10 @@ function textoCordao(cc, folhas) {
   return `${folhas}x ${fmtMedida(round2(metros / folhas))} m`;
 }
 const CAMADAS_CORTINA = ["fundo", "forro", "xale"];
-const CAMADA_LABEL = { fundo: "Fundo", forro: "Forro", xale: "Xale" };
+// Atenção: as CHAVES (fundo/forro/xale) são as de sempre e a lógica não
+// mudou — só os NOMES exibidos foram trocados. A camada mais atrás
+// (chave "fundo") se chama Forro; a do meio (chave "forro") se chama Fundo.
+const CAMADA_LABEL = { fundo: "Forro", forro: "Fundo", xale: "Xale" };
 // Ordem da mais à frente pra mais atrás. Só a camada mais à frente pode
 // ser Wave — se ela for Wave, todas as de trás são obrigatoriamente
 // Franzido (fisicamente só a camada da frente mostra a onda; as de trás
@@ -637,6 +651,8 @@ function camadaOrcamentoPadrao() {
     // dessa camada (qtdCoz) — não é digitada à parte. No Franzido é
     // OPCIONAL — controlada por adicionarFitaFacil, abaixo.
     alturaBarra: null, // cm — tamanho da barra dessa camada, informado na etapa de orçamento
+    pregaTipo: null, // "Macho" | "Fêmea" | "Favos" | "Outra" — só quando acabamento === "Prega"
+    pregaOutra: "", // texto livre quando pregaTipo === "Outra"
     adicionarFitaFacil: false, // só usado quando acabamento === "Franzido" — pré-selecionado sem fita
     // Só usados quando Modelo = "Varão" — substituem acabamento/espacamentoCordao
     // pra essa camada (Varão não usa Wave/Franzido, deslizante, clip, fita
@@ -685,6 +701,11 @@ function orcamentoPadrao() {
     // próprios. Campo mora aqui (nível da peça) mas o checkbox só aparece
     // na camada Forro.
     fundoCosturadoJunto: false,
+    // O Fundo (camada do meio, chave "forro") costurado junto atrás do
+    // Xale — vira uma peça física só com o Xale e segue o acabamento dele.
+    fundoCosturadoNoXale: false,
+    // Tipo de suporte do Trilho suíço (a quantidade é sempre igual ao nº de presilhas).
+    suporteTrilhoTipo: null,
     observacaoCostura: "", // nota livre pra outros casos não cobertos acima
     suportes: [], // [{ id, tipo, qtd }]
     // Mão de obra: valores digitados pela vendedora, não calculados.
@@ -755,6 +776,13 @@ function calcularMaterialCamada(larguraReal, camada, folhas) {
 // Só calcula os modelos em MODELOS_COM_ORCAMENTO — os demais (Varão,
 // Trilho curvo, Trilho com comando, Motorizado) e Persiana não estão
 // cobertos ainda, e usaOrcamento vem false pra a ficha saber disso.
+// Motivo pelo qual a venda da peça NÃO pode ser marcada como feita (ou null).
+function motivoBloqueioVenda(peca) {
+  const calc = calcularOrcamentoPeca(peca);
+  if (!calc.usaOrcamento) return null;
+  return calc.resumo?.bloqueioSuporte || null;
+}
+
 function calcularOrcamentoPeca(peca) {
   const orc = peca.orcamento || orcamentoPadrao();
   const larguraReal = peca.largura;
@@ -769,6 +797,13 @@ function calcularOrcamentoPeca(peca) {
   // ativo — sem Forro ativo, não há em quem o Fundo "seguir".
   const forroAtivo = !!orc.camadas?.forro?.ativo;
   const fundoMesclado = !!orc.fundoCosturadoJunto && forroAtivo;
+  // Fundo (do meio, chave "forro") costurado atrás do Xale: só vale com o
+  // Xale ativo. Se o Forro (mais atrás) também estiver costurado no Fundo,
+  // ele acompanha todo mundo e segue o Xale.
+  const xaleAtivo = !!orc.camadas?.xale?.ativo;
+  const forroMesclado = !!orc.fundoCosturadoNoXale && xaleAtivo;
+  const seguirDe = (chave) =>
+    chave === "forro" && forroMesclado ? "xale" : chave === "fundo" && fundoMesclado ? (forroMesclado ? "xale" : "forro") : null;
 
   // Só a camada mais à frente (entre as que têm acabamento próprio, ou
   // seja, ativas e não mescladas) pode ser Wave. Se ela for Wave, as
@@ -776,7 +811,7 @@ function calcularOrcamentoPeca(peca) {
   // Franzido, mesmo que a pessoa tenha marcado Wave nelas.
   const camadasComAcabamentoProprio = ORDEM_FRENTE_CAMADAS.filter((chave) => {
     const ativa = !!orc.camadas?.[chave]?.ativo;
-    const mesclada = chave === "fundo" && fundoMesclado;
+    const mesclada = !!seguirDe(chave);
     return ativa && !mesclada;
   });
   const camadaFrontal = camadasComAcabamentoProprio[0] || null;
@@ -823,8 +858,8 @@ function calcularOrcamentoPeca(peca) {
   const ponteirasPorDiametro = {};
   CAMADAS_CORTINA.forEach((chave) => {
     let c = orc.camadas?.[chave] || camadaOrcamentoPadrao();
-    const mesclada = chave === "fundo" && fundoMesclado;
-    // Fundo costurado junto no Forro não leva COZ próprio.
+    const mesclada = !!seguirDe(chave);
+    // Camada costurada junto em outra não leva COZ próprio.
     const custoTecido = c.ativo ? round2((c.qtdTecido || 0) * (c.precoTecido || 0)) : 0;
     const precoCoz = c.cozTipo && c.cozTipo !== "Sem COZ" ? PRECO_COZ[c.cozTipo] || 0 : 0;
     const custoCoz = c.ativo && !mesclada ? round2((c.qtdCoz || 0) * precoCoz) : 0;
@@ -929,7 +964,7 @@ function calcularOrcamentoPeca(peca) {
         }
       }
     } else {
-      forcarFranzido = frontalEhWave && camadaFrontal !== chave && camadasComAcabamentoProprio.includes(chave);
+      forcarFranzido = frontalEhWave && camadaFrontal !== chave && camadasComAcabamentoProprio.includes(chave) && c.acabamento !== "Prega";
       const acabamentoEfetivo = forcarFranzido ? "Franzido" : c.acabamento;
       mat =
         c.ativo && !mesclada && larguraReal
@@ -969,6 +1004,7 @@ function calcularOrcamentoPeca(peca) {
       custoTecido,
       custoCoz,
       mesclada,
+      segueChave: seguirDe(chave),
       forcarFranzido,
       forcarArgola,
       ...mat,
@@ -1031,7 +1067,20 @@ function calcularOrcamentoPeca(peca) {
     // nenhuma pra eles.
   }
 
-  const suportes = (orc.suportes || []).map((s) => {
+  // "Vai suporte?" (Sim/Não) — respondido no formulário de medição. Peças
+  // antigas sem resposta mas com suportes lançados contam como "Sim".
+  const respostaSuporte = peca.vaiSuporte ?? ((orc.suportes || []).length > 0 ? true : null);
+  let listaSuportes = orc.suportes || [];
+  if (modelo === "Trilho suíço") {
+    // Trilho suíço: nº de suportes = nº de presilhas; a vendedora só escolhe o tipo.
+    listaSuportes =
+      respostaSuporte === true && orc.suporteTrilhoTipo
+        ? [{ id: "trilho-auto", tipo: orc.suporteTrilhoTipo, qtd: presilhas?.quantidade ?? null, auto: true }]
+        : [];
+  } else if (respostaSuporte !== true) {
+    listaSuportes = []; // Não (ou sem resposta): nada de suporte é cobrado
+  }
+  const suportes = listaSuportes.map((s) => {
     const valorUnitario = catalogoSup[s.tipo];
     return {
       ...s,
@@ -1084,8 +1133,25 @@ function calcularOrcamentoPeca(peca) {
       return cc.ativo && !cc.mesclada && (!cc.flangeEsquerda || !cc.flangeDireita);
     });
   const suportesInsuficientes =
-    (varaoPrecisaSuporteCompartilhado && totalQtdSuportes === 0) ||
-    (ehTuboVaza && totalQtdSuportes < SUPORTES_MINIMOS_TUBO_VAZA);
+    respostaSuporte === true &&
+    ((varaoPrecisaSuporteCompartilhado && totalQtdSuportes === 0) ||
+      (ehTuboVaza && totalQtdSuportes < SUPORTES_MINIMOS_TUBO_VAZA));
+  // Trava da "Venda feita": se vai suporte, a quantidade precisa estar preenchida.
+  let bloqueioSuporte = null;
+  if (respostaSuporte == null) {
+    bloqueioSuporte = "Responda se vai suporte (Sim ou Não) antes de fechar a venda.";
+  } else if (respostaSuporte === true) {
+    if (modelo === "Trilho suíço") {
+      if (!orc.suporteTrilhoTipo) bloqueioSuporte = "Escolha o tipo de suporte antes de fechar a venda.";
+      else if (!(presilhas?.quantidade > 0)) bloqueioSuporte = "Escolha o tipo de trilho para calcular a quantidade de suportes.";
+    } else if (totalQtdSuportes <= 0 || suportes.some((s) => !(s.qtd > 0))) {
+      bloqueioSuporte = "Informe a quantidade de suportes antes de fechar a venda.";
+    } else if (suportesInsuficientes) {
+      bloqueioSuporte = ehTuboVaza
+        ? `O Tubo Vaza precisa de pelo menos ${SUPORTES_MINIMOS_TUBO_VAZA} suportes.`
+        : "Informe a quantidade de suportes antes de fechar a venda.";
+    }
+  }
 
   // Varão/Tubo Vaza: preço de Ilhós/Argola/Gancho/Varão/Tubo/Flange (por
   // camada ativa), Ponteira (por diâmetro) ou de algum suporte adicionado
@@ -1155,6 +1221,8 @@ function calcularOrcamentoPeca(peca) {
       maoDeObra: totalMaoDeObra,
       total: totalGeral,
       suportesInsuficientes,
+      vaiSuporte: respostaSuporte,
+      bloqueioSuporte,
       // Varão/Tubo Vaza com ilhós/argola/gancho/varão/tubo/suporte sem
       // preço cadastrado, ou Abertura ainda não escolhida: avisa que o
       // total está incompleto em vez de fingir que é o custo real.
@@ -1175,8 +1243,9 @@ function canVerMateriaisProducao(papel) {
 // (Wave/Franzido) e, no Tubo Vaza, o diâmetro escolhido nessa camada,
 // porque o desconto de medida usado no corte é diferente pra cada
 // combinação.
-function labelModeloCamada(modeloPeca, acabamentoEfetivo, diametro) {
+function labelModeloCamada(modeloPeca, acabamentoEfetivo, diametro, pregaTxt) {
   if (!modeloPeca || !acabamentoEfetivo) return null;
+  if (acabamentoEfetivo === "Prega" && pregaTxt) acabamentoEfetivo = pregaTxt;
   if (modeloPeca === "Trilho suíço") return `Trilho Suíço ${acabamentoEfetivo}`;
   if (modeloPeca === "Tubo Vaza") return `Tubo Vaza ${diametro ? diametro + " " : ""}${acabamentoEfetivo}`;
   return null;
@@ -5563,7 +5632,7 @@ function PedidoDetail({
   const reativarPedido = () => onChange({ ...pedido, status: null, perdidoEm: null });
 
   const todasPecas = pedido.ambientes.flatMap((a) => a.pecas);
-  const pendentesVenda = todasPecas.filter((p) => p.locked && !p.vendaFeitaEm).length;
+  const pendentesVenda = todasPecas.filter((p) => p.locked && !p.vendaFeitaEm && !motivoBloqueioVenda(p)).length;
   const pendentesProducao = todasPecas.filter((p) => p.locked && p.vendaFeitaEm && !p.statusProducao).length;
   const emProducaoCount = todasPecas.filter((p) => p.statusProducao === "Em produção").length;
   const disponivelCount = todasPecas.filter((p) => p.statusProducao === "Disponível para instalar").length;
@@ -5582,7 +5651,7 @@ function PedidoDetail({
       ...pedido,
       ambientes: pedido.ambientes.map((a) => ({
         ...a,
-        pecas: a.pecas.map((p) => (p.locked && !p.vendaFeitaEm ? { ...p, vendaFeitaPor: nome, vendaFeitaEm: iso } : p)),
+        pecas: a.pecas.map((p) => (p.locked && !p.vendaFeitaEm && !motivoBloqueioVenda(p) ? { ...p, vendaFeitaPor: nome, vendaFeitaEm: iso } : p)),
       })),
     };
     onChange(updated);
@@ -6195,6 +6264,11 @@ function useMedicaoDraft(peca, papel, nome, onUpdate) {
   const [alturaCurtaRaw, setAlturaCurtaRaw] = useState(numToDigits(peca.alturaCurta));
   const [obs, setObs] = useState(peca.observacoes || "");
   const [attemptedSave, setAttemptedSave] = useState(false);
+  const [vaiSuporte, setVaiSuporte] = useState(peca.vaiSuporte ?? null);
+
+  useEffect(() => {
+    setVaiSuporte(peca.vaiSuporte ?? null);
+  }, [peca.vaiSuporte]);
 
   useEffect(() => {
     setLarguraRaw(numToDigits(peca.largura));
@@ -6253,6 +6327,7 @@ function useMedicaoDraft(peca, papel, nome, onUpdate) {
       altura: h,
       alturaCurta: digitsToNum(alturaCurtaRaw),
       observacoes: obs,
+      ...(vaiSuporte != null ? { vaiSuporte } : {}),
       locked: true,
       savedBy: nome,
       savedAt: iso,
@@ -6268,6 +6343,8 @@ function useMedicaoDraft(peca, papel, nome, onUpdate) {
     setAlturaCurtaRaw,
     obs,
     setObs,
+    vaiSuporte,
+    setVaiSuporte,
     commitField,
     commitObs,
     handleConcluir,
@@ -6502,15 +6579,24 @@ function ProducaoControls({ peca, papel, nome, onUpdate }) {
   // pra ir pra produção depois que o vendedor confirmar a venda.
   if (!peca.vendaFeitaEm) {
     if (!canEnviarProducao(papel)) return null;
+    const bloqueio = motivoBloqueioVenda(peca);
     return (
       <>
         {confirmDialog}
         <button
+          disabled={!!bloqueio}
           onClick={() => setConfirmando("venda")}
-          style={{ ...smallActionStyle, marginTop: 6, color: "var(--rose)", borderColor: "var(--rose-soft)" }}
+          style={{
+            ...smallActionStyle,
+            marginTop: 6,
+            color: "var(--rose)",
+            borderColor: "var(--rose-soft)",
+            opacity: bloqueio ? 0.5 : 1,
+          }}
         >
           <Check size={13} /> Marcar venda feita
         </button>
+        {bloqueio && <div style={{ fontSize: 11.5, color: "var(--amber)", marginTop: 4 }}>{bloqueio}</div>}
       </>
     );
   }
@@ -6599,12 +6685,20 @@ function fieldLabel(field) {
    + preços + resumo); Fábrica vê só as quantidades de materiais, sem
    nenhum valor em R$ — mesma regra que já protege o resto do sistema.
    ============================================================ */
-function OrcCampoNumero({ label, value, onCommit, sufixo, casasDecimais = 2, placeholder }) {
+function OrcCampoNumero({ label, value, onCommit, sufixo, casasDecimais = 2, placeholder, mascara = false }) {
+  // mascara: a vírgula é automática — os números entram pela direita
+  // (1850 vira 18,50), igual aos campos de medida.
+  const [digitos, setDigitos] = useState(value == null ? "" : numToDigits(value));
   const [raw, setRaw] = useState(value == null ? "" : String(value));
   useEffect(() => {
     setRaw(value == null ? "" : String(value));
+    setDigitos(value == null ? "" : numToDigits(value));
   }, [value]);
   const commit = () => {
+    if (mascara) {
+      onCommit(digitos === "" ? null : digitsToNum(digitos));
+      return;
+    }
     const num = raw.trim() === "" ? null : Number(raw.replace(",", "."));
     onCommit(num == null || Number.isNaN(num) ? null : Number(num.toFixed(casasDecimais)));
   };
@@ -6613,11 +6707,11 @@ function OrcCampoNumero({ label, value, onCommit, sufixo, casasDecimais = 2, pla
       {label && <span style={labelStyle}>{label}</span>}
       <div style={{ position: "relative" }}>
         <input
-          value={raw}
-          onChange={(e) => setRaw(e.target.value)}
+          value={mascara ? formatFromDigits(digitos) : raw}
+          onChange={(e) => (mascara ? setDigitos(digitsFromInput(e.target.value, 8)) : setRaw(e.target.value))}
           onBlur={commit}
-          inputMode="decimal"
-          placeholder={placeholder || "0"}
+          inputMode={mascara ? "numeric" : "decimal"}
+          placeholder={placeholder || (mascara ? "0,00" : "0")}
           style={{
             ...inputStyle(),
             fontFamily: "var(--mono)",
@@ -6647,7 +6741,7 @@ function OrcCampoNumero({ label, value, onCommit, sufixo, casasDecimais = 2, pla
     </label>
   );
 }
-function OrcCamada({ chave, camada, calc, onChange, editar, fundoAtivo, fundoCosturadoJunto, onToggleFundoJunto, modeloPeca, varaoMaterial }) {
+function OrcCamada({ chave, camada, calc, onChange, editar, fundoAtivo, fundoCosturadoJunto, onToggleFundoJunto, meioAtivo, fundoCosturadoNoXale, onToggleFundoNoXale, modeloPeca, varaoMaterial }) {
   const mesclada = !!calc?.mesclada;
   const ehVarao = modeloPeca === "Varão";
   const ehTuboVaza = modeloPeca === "Tubo Vaza";
@@ -6673,8 +6767,8 @@ function OrcCamada({ chave, camada, calc, onChange, editar, fundoAtivo, fundoCos
             />
           </label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <OrcCampoNumero label="Preço do tecido" value={camada.precoTecido} onCommit={(v) => onChange({ precoTecido: v })} sufixo="R$/m" />
-            <OrcCampoNumero label="Quantidade" value={camada.qtdTecido} onCommit={(v) => onChange({ qtdTecido: v })} sufixo="m" />
+            <OrcCampoNumero label="Preço do tecido" value={camada.precoTecido} onCommit={(v) => onChange({ precoTecido: v })} sufixo="R$/m" mascara />
+            <OrcCampoNumero label="Quantidade" value={camada.qtdTecido} onCommit={(v) => onChange({ qtdTecido: v })} sufixo="m" mascara />
           </div>
           <OrcCampoNumero
             label="Tamanho da Barra"
@@ -6701,7 +6795,7 @@ function OrcCamada({ chave, camada, calc, onChange, editar, fundoAtivo, fundoCos
                 </select>
               </label>
               {camada.cozTipo && camada.cozTipo !== "Sem COZ" && (
-                <OrcCampoNumero label="Quantidade de COZ" value={camada.qtdCoz} onCommit={(v) => onChange({ qtdCoz: v })} sufixo="m" />
+                <OrcCampoNumero label="Quantidade de COZ" value={camada.qtdCoz} onCommit={(v) => onChange({ qtdCoz: v })} sufixo="m" mascara />
               )}
               {camada.acabamento === "Franzido" && (camada.cozTipo === "TNT" || camada.cozTipo === "Tecido") && (
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
@@ -6724,7 +6818,18 @@ function OrcCamada({ chave, camada, calc, onChange, editar, fundoAtivo, fundoCos
                 disabled={!editar}
                 onChange={(e) => onToggleFundoJunto(e.target.checked)}
               />
-              Fundo costurado junto no Forro
+              Forro costurado junto no Fundo
+            </label>
+          )}
+          {chave === "xale" && meioAtivo && (
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+              <input
+                type="checkbox"
+                checked={!!fundoCosturadoNoXale}
+                disabled={!editar}
+                onChange={(e) => onToggleFundoNoXale(e.target.checked)}
+              />
+              Fundo costurado junto atrás do Xale
             </label>
           )}
 
@@ -6749,8 +6854,8 @@ function OrcCamada({ chave, camada, calc, onChange, editar, fundoAtivo, fundoCos
           {mesclada ? (
             <div style={{ fontSize: 11.5, color: "var(--ink-soft)", fontStyle: "italic" }}>
               {ehVarao
-                ? "Segue a fixação do Forro (costurado junto) — sem COZ, Ilhós/Argola ou Gancho próprios."
-                : "Segue o acabamento do Forro (costurado junto) — sem COZ, deslizante, clip, cordão ou fita próprios."}
+                ? `Segue a fixação do ${CAMADA_LABEL[calc?.segueChave || "forro"]} (costurado junto) — sem COZ, Ilhós/Argola ou Gancho próprios.`
+                : `Segue o acabamento do ${CAMADA_LABEL[calc?.segueChave || "forro"]} (costurado junto) — sem COZ, deslizante, clip, cordão ou fita próprios.`}
             </div>
           ) : ehVarao ? (
             <>
@@ -6855,6 +6960,33 @@ function OrcCamada({ chave, camada, calc, onChange, editar, fundoAtivo, fundoCos
                   ))}
                 </select>
               </label>
+              {camada.acabamento === "Prega" && (
+                <>
+                  <label style={{ display: "block" }}>
+                    <span style={labelStyle}>Tipo de Prega</span>
+                    <select
+                      value={camada.pregaTipo || ""}
+                      onChange={(e) => onChange({ pregaTipo: e.target.value || null })}
+                      style={{ ...inputStyle(), borderColor: !camada.pregaTipo ? "var(--locked)" : undefined }}
+                    >
+                      <option value="">Selecione…</option>
+                      {TIPOS_PREGA.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {camada.pregaTipo === "Outra" && (
+                    <input
+                      value={camada.pregaOutra || ""}
+                      onChange={(e) => onChange({ pregaOutra: e.target.value })}
+                      placeholder="Qual tipo de prega?"
+                      style={inputStyle()}
+                    />
+                  )}
+                </>
+              )}
               {camada.acabamento === "Wave" && (
                 <label style={{ display: "block" }}>
                   <span style={labelStyle}>Espaçamento cordão Wave</span>
@@ -7057,7 +7189,7 @@ function CaracteristicasProducao({ peca, orc, calc }) {
             ? null
             : labelModeloVarao(fixacaoEfetiva, cc.varaoDiametro)
           : acabamentoEfetivo
-          ? labelModeloCamada(peca.modelo, acabamentoEfetivo, cc.tuboVazaDiametro)
+          ? labelModeloCamada(peca.modelo, acabamentoEfetivo, cc.tuboVazaDiametro, textoPrega(orc.camadas?.[chave]))
           : null;
         const cozLabel =
           !cc.mesclada && cc.cozTipo && cc.cozTipo !== "Sem COZ" ? labelTipoCoz(cc.cozTipo, !ehVarao && !!cc.fitaWave) : null;
@@ -7127,11 +7259,14 @@ function CaracteristicasProducao({ peca, orc, calc }) {
           </div>
         );
       })}
-      {(orc.fundoCosturadoJunto && orc.camadas?.forro?.ativo) || (orc.observacaoCostura && orc.observacaoCostura.trim()) ? (
+      {(orc.fundoCosturadoJunto && orc.camadas?.forro?.ativo) || (orc.fundoCosturadoNoXale && orc.camadas?.xale?.ativo) || (orc.observacaoCostura && orc.observacaoCostura.trim()) ? (
         <div style={{ fontSize: 12, color: "var(--ink-soft)", whiteSpace: "pre-wrap" }}>
           <strong>Observações:</strong>
           {orc.fundoCosturadoJunto && orc.camadas?.forro?.ativo && (
-            <div>Fundo costurado junto ao Forro — tecidos na mesma sacola (Fundo e Forro).</div>
+            <div>Forro costurado junto no Fundo — tecidos na mesma sacola (Forro e Fundo).</div>
+          )}
+          {orc.fundoCosturadoNoXale && orc.camadas?.xale?.ativo && (
+            <div>Fundo costurado junto atrás do Xale — tecidos na mesma sacola (Fundo e Xale).</div>
           )}
           {orc.observacaoCostura && orc.observacaoCostura.trim() && <div>{orc.observacaoCostura}</div>}
         </div>
@@ -7166,7 +7301,7 @@ function gerarHtmlFichaProducao(pedido, ambiente, peca, orc, calc) {
           ? null
           : labelModeloVarao(fixacaoEfetiva, cc.varaoDiametro)
         : acabamentoEfetivo
-        ? labelModeloCamada(peca.modelo, acabamentoEfetivo, cc.tuboVazaDiametro)
+        ? labelModeloCamada(peca.modelo, acabamentoEfetivo, cc.tuboVazaDiametro, textoPrega(orc.camadas?.[chave]))
         : null;
       const cozLabel =
         !cc.mesclada && cc.cozTipo && cc.cozTipo !== "Sem COZ" ? labelTipoCoz(cc.cozTipo, !ehVarao && !!cc.fitaWave) : null;
@@ -7225,7 +7360,10 @@ function gerarHtmlFichaProducao(pedido, ambiente, peca, orc, calc) {
 
   const observacoes = [];
   if (orc.fundoCosturadoJunto && orc.camadas?.forro?.ativo) {
-    observacoes.push("Fundo costurado junto ao Forro — tecidos na mesma sacola (Fundo e Forro).");
+    observacoes.push("Forro costurado junto no Fundo — tecidos na mesma sacola (Forro e Fundo).");
+  }
+  if (orc.fundoCosturadoNoXale && orc.camadas?.xale?.ativo) {
+    observacoes.push("Fundo costurado junto atrás do Xale — tecidos na mesma sacola (Fundo e Xale).");
   }
   if (orc.observacaoCostura && orc.observacaoCostura.trim()) observacoes.push(orc.observacaoCostura.trim());
   const observacoesHtml =
@@ -7301,7 +7439,67 @@ function AberturaIcone({ folhas }) {
     </svg>
   );
 }
-function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
+
+/* Copiar / colar orçamento entre peças (mesmo ambiente ou outro). Guarda o
+   orçamento inteiro (acabamento, costura, tecidos, suportes…) na memória do
+   app; as medidas da peça de destino não mudam e o cálculo refaz os valores. */
+let orcamentoCopiado = null;
+const CHAVE_ORC_COPIADO = "orcamentoCopiadoV1";
+function lerOrcamentoCopiado() {
+  if (orcamentoCopiado) return orcamentoCopiado;
+  try {
+    const raw = sessionStorage.getItem(CHAVE_ORC_COPIADO);
+    if (raw) orcamentoCopiado = JSON.parse(raw);
+  } catch (e) {
+    /* sem storage: só em memória */
+  }
+  return orcamentoCopiado;
+}
+function OrcCopiarColar({ peca, onUpdatePeca, campo = "orcamento" }) {
+  const [, forcar] = useState(0);
+  const [aviso, setAviso] = useState("");
+  const copiado = lerOrcamentoCopiado();
+  const compativel = copiado && copiado.produto === peca.produto && copiado.modelo === peca.modelo && copiado.campo === campo && copiado.codigo !== peca.codigo;
+  const copiar = () => {
+    orcamentoCopiado = {
+      produto: peca.produto,
+      modelo: peca.modelo,
+      codigo: peca.codigo,
+      campo,
+      vaiSuporte: peca.vaiSuporte ?? null,
+      orcamento: JSON.parse(JSON.stringify(peca[campo] || (campo === "orcamento" ? orcamentoPadrao() : orcamentoPersianaPadrao()))),
+    };
+    try {
+      sessionStorage.setItem(CHAVE_ORC_COPIADO, JSON.stringify(orcamentoCopiado));
+    } catch (e) {
+      /* ok */
+    }
+    setAviso(`Orçamento de ${peca.codigo} copiado.`);
+    forcar((n) => n + 1);
+  };
+  const colar = () => {
+    const novo = JSON.parse(JSON.stringify(copiado.orcamento));
+    if (novo.suportes) novo.suportes = novo.suportes.map((x) => ({ ...x, id: uid() }));
+    onUpdatePeca({ [campo]: novo, ...(copiado.vaiSuporte != null ? { vaiSuporte: copiado.vaiSuporte } : {}) });
+    setAviso(`Orçamento de ${copiado.codigo} colado — confira as medidas e quantidades.`);
+  };
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      <button onClick={copiar} style={{ ...ghostBtnStyle, width: "auto", padding: "5px 10px", fontSize: 12 }}>
+        <Copy size={13} /> Copiar orçamento
+      </button>
+      {compativel && (
+        <button onClick={colar} style={{ ...ghostBtnStyle, width: "auto", padding: "5px 10px", fontSize: 12 }}>
+          <ClipboardPaste size={13} /> Colar de {copiado.codigo}
+        </button>
+      )}
+      {aviso && <span style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{aviso}</span>}
+    </div>
+  );
+}
+
+
+function FichaOrcamento({ peca, papel, onUpdateOrcamento, onUpdatePeca }) {
   const orc = peca.orcamento || orcamentoPadrao();
   const calc = calcularOrcamentoPeca(peca);
   const editar = canEditarOrcamento(papel);
@@ -7371,6 +7569,7 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {editar && <OrcCopiarColar peca={peca} onUpdatePeca={onUpdatePeca} />}
       {peca.modelo === "Trilho suíço" && editar && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <label style={{ display: "block" }}>
@@ -7521,8 +7720,9 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
                     padding: "8px 4px",
                     borderRadius: 8,
                     border: selecionada ? "2px solid var(--accent)" : "1px solid var(--line)",
-                    background: selecionada ? "var(--accent-soft)" : "transparent",
-                    color: selecionada ? "var(--accent)" : "var(--ink)",
+                    background: selecionada ? "var(--accent)" : "transparent",
+                    color: selecionada ? "var(--accent-ink)" : "var(--ink)",
+                    fontWeight: selecionada ? 700 : 400,
                     cursor: "pointer",
                     fontSize: 11,
                     textAlign: "center",
@@ -7558,12 +7758,13 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
               {peca.modelo === "Varão"
                 ? "— diâmetro e fixação (Ilhós/Argola) são por camada"
                 : peca.modelo === "Tubo Vaza"
-                ? "— diâmetro é por camada; acabamento (Wave/Franzido) também é por camada"
-                : "— acabamento (Wave/Franzido) é por camada"}
+                ? "— diâmetro é por camada; acabamento (Wave/Franzido/Prega) também é por camada"
+                : "— acabamento (Wave/Franzido/Prega) é por camada"}
             </span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {CAMADAS_CORTINA.map((chave) => (
+            {/* Ordem de preenchimento: Xale → Fundo → Forro (a lógica das camadas não muda) */}
+            {ORDEM_FRENTE_CAMADAS.map((chave) => (
               <OrcCamada
                 key={chave}
                 chave={chave}
@@ -7574,6 +7775,9 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
                 fundoAtivo={!!orc.camadas?.fundo?.ativo}
                 fundoCosturadoJunto={!!orc.fundoCosturadoJunto}
                 onToggleFundoJunto={(v) => onUpdateOrcamento({ fundoCosturadoJunto: v })}
+                meioAtivo={!!orc.camadas?.forro?.ativo}
+                fundoCosturadoNoXale={!!orc.fundoCosturadoNoXale}
+                onToggleFundoNoXale={(v) => onUpdateOrcamento({ fundoCosturadoNoXale: v })}
                 modeloPeca={peca.modelo}
                 varaoMaterial={orc.varaoMaterial}
               />
@@ -7588,7 +7792,7 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
           <textarea
             value={orc.observacaoCostura || ""}
             onChange={(e) => onUpdateOrcamento({ observacaoCostura: e.target.value })}
-            placeholder="Ex.: xale costurado junto no forro"
+            placeholder="Ex.: observações de costura para a fábrica"
             rows={2}
             style={{ ...inputStyle(), resize: "vertical" }}
           />
@@ -7627,66 +7831,129 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, marginBottom: 8 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600 }}>
-            Suportes
-            {peca.modelo === "Varão" && (
-              <span style={{ fontWeight: 400, color: "var(--ink-soft)" }}>
-                {" "}
-                — compartilhados entre varões; ponta com Flange própria não precisa de suporte
-              </span>
-            )}
-            {peca.modelo === "Tubo Vaza" && (
-              <span style={{ fontWeight: 400, color: "var(--ink-soft)" }}> — mínimo {SUPORTES_MINIMOS_TUBO_VAZA} no Tubo Vaza</span>
-            )}
-          </div>
-          {editar && (
-            <button onClick={addSuporte} style={{ ...ghostBtnStyle, width: "auto", padding: "4px 8px", fontSize: 12 }}>
-              <Plus size={13} /> Adicionar
-            </button>
+        <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 14, marginBottom: 8 }}>
+          Suportes
+          {peca.modelo === "Varão" && (
+            <span style={{ fontWeight: 400, color: "var(--ink-soft)" }}>
+              {" "}
+              — compartilhados entre varões; ponta com Flange própria não precisa de suporte
+            </span>
+          )}
+          {peca.modelo === "Tubo Vaza" && (
+            <span style={{ fontWeight: 400, color: "var(--ink-soft)" }}> — mínimo {SUPORTES_MINIMOS_TUBO_VAZA} no Tubo Vaza</span>
           )}
         </div>
-        {calc.resumo.suportesInsuficientes && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13 }}>Vai suporte?</span>
+          {[
+            [true, "Sim"],
+            [false, "Não"],
+          ].map(([v, rot]) => {
+            const ativo = calc.resumo.vaiSuporte === v;
+            return (
+              <button
+                key={rot}
+                disabled={!editar}
+                onClick={() => onUpdatePeca({ vaiSuporte: v })}
+                style={{
+                  padding: "7px 22px",
+                  borderRadius: 8,
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  border: ativo ? "2px solid var(--accent)" : "1px solid var(--line-strong)",
+                  background: ativo ? "var(--accent)" : "var(--surface)",
+                  color: ativo ? "var(--accent-ink)" : "var(--ink)",
+                }}
+              >
+                {rot}
+              </button>
+            );
+          })}
+        </div>
+        {calc.resumo.vaiSuporte == null && (
           <div style={{ fontSize: 11.5, color: "var(--amber)", marginBottom: 8 }}>
-            {peca.modelo === "Varão"
-              ? "Pelo menos um suporte compartilhado é necessário — cobrindo as pontas sem flange própria — ou marque flange nas duas pontas de cada varão."
-              : `${peca.modelo} sempre precisa de pelo menos ${SUPORTES_MINIMOS_TUBO_VAZA} suportes — adicione acima.`}
+            Responda se vai suporte — sem a resposta a venda não pode ser fechada.
           </div>
         )}
-        {(orc.suportes || []).length === 0 ? (
-          <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Nenhum suporte adicionado.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {calc.suportes.map((s) => (
-              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <select
-                  value={s.tipo}
-                  disabled={!editar}
-                  onChange={(e) => setSuporte(s.id, { tipo: e.target.value })}
-                  style={{ ...inputStyle(), flex: 1 }}
-                >
-                  {Object.keys(catalogoSuporte(peca.modelo, orc)).map((t) => (
-                    <option key={t} value={t}>
-                      Suporte {t}
-                    </option>
-                  ))}
-                </select>
-                <div style={{ width: 70 }}>
-                  <OrcCampoNumero value={s.qtd} onCommit={(v) => setSuporte(s.id, { qtd: v })} casasDecimais={0} />
-                </div>
-                {editar && (
-                  <div style={{ fontSize: 11.5, color: s.precoDefinido ? "var(--ink-soft)" : "var(--amber)", width: 80, textAlign: "right" }}>
-                    {s.precoDefinido ? fmtValor(s.total) : "a definir"}
-                  </div>
-                )}
-                {editar && (
-                  <button onClick={() => removeSuporte(s.id)} style={{ background: "none", border: "none", padding: 4, color: "var(--locked)" }}>
-                    <Trash2 size={14} />
-                  </button>
-                )}
+        {calc.resumo.vaiSuporte === false && (
+          <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Sem suporte — nenhum suporte é cobrado.</div>
+        )}
+        {calc.resumo.vaiSuporte === true && peca.modelo === "Trilho suíço" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <select
+              value={orc.suporteTrilhoTipo || ""}
+              disabled={!editar}
+              onChange={(e) => onUpdateOrcamento({ suporteTrilhoTipo: e.target.value || null })}
+              style={{ ...inputStyle(), flex: 1, borderColor: !orc.suporteTrilhoTipo ? "var(--locked)" : undefined }}
+            >
+              <option value="">Qual suporte?</option>
+              {Object.keys(PRECO_SUPORTE).map((t) => (
+                <option key={t} value={t}>
+                  Suporte {t}
+                </option>
+              ))}
+            </select>
+            <div style={{ fontSize: 12.5, textAlign: "right", minWidth: 96 }}>
+              <div style={{ fontFamily: "var(--mono)", fontWeight: 700 }}>{calc.suportes[0]?.qtd ?? calc.presilhas?.quantidade ?? "—"} un</div>
+              <div style={{ fontSize: 10.5, color: "var(--ink-soft)" }}>= nº de presilhas</div>
+            </div>
+            {editar && calc.suportes[0] && (
+              <div style={{ fontSize: 11.5, color: calc.suportes[0].precoDefinido ? "var(--ink-soft)" : "var(--amber)", width: 80, textAlign: "right" }}>
+                {calc.suportes[0].precoDefinido ? fmtValor(calc.suportes[0].total) : "a definir"}
               </div>
-            ))}
+            )}
           </div>
+        )}
+        {calc.resumo.vaiSuporte === true && peca.modelo !== "Trilho suíço" && (
+          <>
+            {editar && (
+              <button onClick={addSuporte} style={{ ...ghostBtnStyle, width: "auto", padding: "4px 8px", fontSize: 12, marginBottom: 8 }}>
+                <Plus size={13} /> Adicionar suporte
+              </button>
+            )}
+            {calc.resumo.bloqueioSuporte && (
+              <div style={{ fontSize: 11.5, color: "var(--amber)", marginBottom: 8 }}>
+                {peca.modelo === "Varão"
+                  ? "Selecione o tipo e a quantidade — pelo menos um suporte compartilhado cobrindo as pontas sem flange própria."
+                  : `Selecione o tipo e a quantidade — ${peca.modelo} sempre precisa de pelo menos ${SUPORTES_MINIMOS_TUBO_VAZA} suportes.`}
+              </div>
+            )}
+            {(orc.suportes || []).length === 0 ? (
+              <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>Nenhum suporte adicionado.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {calc.suportes.map((s) => (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <select
+                      value={s.tipo}
+                      disabled={!editar}
+                      onChange={(e) => setSuporte(s.id, { tipo: e.target.value })}
+                      style={{ ...inputStyle(), flex: 1 }}
+                    >
+                      {Object.keys(catalogoSuporte(peca.modelo, orc)).map((t) => (
+                        <option key={t} value={t}>
+                          Suporte {t}
+                        </option>
+                      ))}
+                    </select>
+                    <div style={{ width: 70 }}>
+                      <OrcCampoNumero value={s.qtd} onCommit={(v) => setSuporte(s.id, { qtd: v })} casasDecimais={0} placeholder="Qtd." />
+                    </div>
+                    {editar && (
+                      <div style={{ fontSize: 11.5, color: s.precoDefinido ? "var(--ink-soft)" : "var(--amber)", width: 80, textAlign: "right" }}>
+                        {s.precoDefinido ? fmtValor(s.total) : "a definir"}
+                      </div>
+                    )}
+                    {editar && (
+                      <button onClick={() => removeSuporte(s.id)} style={{ background: "none", border: "none", padding: 4, color: "var(--locked)" }}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
         {peca.modelo === "Varão" && Object.keys(calc.ponteiras.porDiametro).length > 0 && (
           <div style={{ marginTop: 14 }}>
@@ -7806,7 +8073,7 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
                     <span>
                       {CAMADA_LABEL[chave]}
                       {cc.mesclada && (
-                        <span style={{ fontWeight: 400, color: "var(--ink-soft)", fontStyle: "italic" }}> — costurado junto no Forro</span>
+                        <span style={{ fontWeight: 400, color: "var(--ink-soft)", fontStyle: "italic" }}> — costurado junto{calc.camadas[chave].segueChave ? ` no ${CAMADA_LABEL[calc.camadas[chave].segueChave]}` : ""}</span>
                       )}
                     </span>
                     <span>{fmtValor(cc.custoTotal)}</span>
@@ -7922,7 +8189,7 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento }) {
    FICHA — Orçamento automático de PERSIANAS
    Preços e regras: src/lib/tabelaPersianas.js (tabela Fujiflex).
    ============================================================ */
-function FichaOrcamentoPersiana({ peca, calc, editar, onUpdate }) {
+function FichaOrcamentoPersiana({ peca, calc, editar, onUpdate, onUpdatePeca }) {
   const modelo = peca.modelo;
   const orc = calc.orc;
   const itens = calc.itens;
@@ -7952,6 +8219,7 @@ function FichaOrcamentoPersiana({ peca, calc, editar, onUpdate }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {editar && onUpdatePeca && <OrcCopiarColar peca={peca} onUpdatePeca={onUpdatePeca} campo="orcamentoPersiana" />}
       {modelo === "Horizontal" && (
         <label style={{ display: "block" }}>
           <span style={labelStyle}>Espessura da lâmina</span>
@@ -7996,6 +8264,27 @@ function FichaOrcamentoPersiana({ peca, calc, editar, onUpdate }) {
         </label>
       )}
 
+      {calc.podeDividir && (
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, background: "var(--accent-soft)", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px" }}>
+          <input
+            type="checkbox"
+            checked={!!orc.dividir}
+            disabled={soLeitura}
+            onChange={(e) => onUpdate({ dividir: e.target.checked })}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            <strong>Dividir em 2 persianas</strong>
+            <br />
+            <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>
+              A largura passa do máximo da fábrica
+              {calc.larguraMaxima ? ` (${String(calc.larguraMaxima.toFixed(2)).replace(".", ",")} m)` : ""}.
+              {calc.dividido ? ` Cada persiana fica com ${String(calc.larguraPorPersiana.toFixed(2)).replace(".", ",")} m.` : ""}
+            </span>
+          </span>
+        </label>
+      )}
+
       {calc.item && opcoes.length > 0 && (
         <div>
           <div style={labelStyle}>Opcionais</div>
@@ -8009,6 +8298,21 @@ function FichaOrcamentoPersiana({ peca, calc, editar, onUpdate }) {
                     <input type="checkbox" checked={ativo} disabled={soLeitura} onChange={(e) => setOpcao(op, e.target.checked)} />
                     {op.rotulo}
                   </label>
+                  {op.cor && ativo && (
+                    <select
+                      value={orc.cores?.[op.id] || ""}
+                      disabled={soLeitura}
+                      onChange={(e) => onUpdate({ cores: { ...(orc.cores || {}), [op.id]: e.target.value || null } })}
+                      style={{ ...inputStyle(), width: 150, borderColor: ativo && !orc.cores?.[op.id] ? "var(--locked)" : undefined }}
+                    >
+                      <option value="">Cor…</option>
+                      {CORES_ACESSORIO_PERSIANA.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {op.tipo === "qtd-pct" && ativo && (
                     <input
                       type="number"
@@ -8188,7 +8492,9 @@ function MedicaoWizard({ peca, d, onClose }) {
     { titulo: "Qual a altura?", dica: "Em metros. Digite só os números: 140 vira 1,40.", raw: d.alturaRaw, set: d.setAlturaRaw, obrigatorio: true },
     { titulo: "Tem altura curta?", dica: "Só se a peça tiver uma parte mais baixa. Se não tiver, toque em Pular.", raw: d.alturaCurtaRaw, set: d.setAlturaCurtaRaw, obrigatorio: false },
   ];
-  const ULTIMO = 4; // conferir
+  const temSuporte = peca.produto !== "Persiana";
+  const PASSO_SUPORTE = 4;
+  const ULTIMO = temSuporte ? 5 : 4; // conferir
   const num = passo <= 2;
   const campo = campos[passo];
   const valido = !num || !campo.obrigatorio || (digitsToNum(campo.raw) != null && digitsToNum(campo.raw) > 0);
@@ -8205,6 +8511,10 @@ function MedicaoWizard({ peca, d, onClose }) {
   });
 
   const avancar = () => {
+    if (temSuporte && passo === PASSO_SUPORTE && d.vaiSuporte == null) {
+      setTentou(true);
+      return;
+    }
     if (!valido) {
       setTentou(true);
       return;
@@ -8226,6 +8536,7 @@ function MedicaoWizard({ peca, d, onClose }) {
     ["Altura", d.alturaRaw ? formatFromDigits(d.alturaRaw) + " m" : "—", 1],
     ["Altura curta", d.alturaCurtaRaw ? formatFromDigits(d.alturaCurtaRaw) + " m" : "Não tem", 2],
     ["Observações", d.obs || "Nenhuma", 3],
+    ...(temSuporte ? [["Vai suporte?", d.vaiSuporte == null ? "—" : d.vaiSuporte ? "Sim" : "Não", PASSO_SUPORTE]] : []),
   ];
   const podeSalvar = digitsToNum(d.larguraRaw) != null && digitsToNum(d.alturaRaw) != null;
 
@@ -8248,7 +8559,7 @@ function MedicaoWizard({ peca, d, onClose }) {
           </button>
         </div>
         <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
-          {passo < ULTIMO ? `Passo ${passo + 1} de 4` : "Conferir"} · {peca.tipo} <span style={{ fontFamily: "var(--mono)", color: "var(--accent)", fontWeight: 700 }}>{peca.codigo}</span>
+          {passo < ULTIMO ? `Passo ${passo + 1} de ${ULTIMO}` : "Conferir"} · {peca.tipo} <span style={{ fontFamily: "var(--mono)", color: "var(--accent)", fontWeight: 700 }}>{peca.codigo}</span>
         </div>
 
         <div key={passo} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 14, padding: "24px 0", animation: "wizIn 0.22s ease-out" }}>
@@ -8275,6 +8586,39 @@ function MedicaoWizard({ peca, d, onClose }) {
               <h2 style={{ fontFamily: "var(--display)", fontSize: 38, lineHeight: 1.05, textTransform: "uppercase" }}>Alguma observação?</h2>
               <div style={{ fontSize: 15, color: "var(--ink-soft)", lineHeight: 1.4 }}>Ex.: janela com parapeito, instalar por fora do vão. Se não tiver, toque em Pular.</div>
               <textarea ref={inputRef} className="wiz-area" value={d.obs} onChange={(e) => d.setObs(e.target.value)} placeholder="Escreva aqui…" style={{ ...inputStyle(), resize: "vertical" }} />
+            </>
+          )}
+          {temSuporte && passo === PASSO_SUPORTE && (
+            <>
+              <h2 style={{ fontFamily: "var(--display)", fontSize: 38, lineHeight: 1.05, textTransform: "uppercase" }}>Vai suporte?</h2>
+              <div style={{ fontSize: 15, color: "var(--ink-soft)", lineHeight: 1.4 }}>Se a resposta for Sim, o sistema cobra os suportes no orçamento.</div>
+              <div style={{ display: "flex", gap: 12 }}>
+                {[
+                  [true, "Sim"],
+                  [false, "Não"],
+                ].map(([v, rot]) => {
+                  const ativo = d.vaiSuporte === v;
+                  return (
+                    <button
+                      key={rot}
+                      onClick={() => d.setVaiSuporte(v)}
+                      style={{
+                        flex: 1,
+                        padding: "26px 10px",
+                        borderRadius: 14,
+                        fontSize: 24,
+                        fontWeight: 700,
+                        border: ativo ? "3px solid var(--accent)" : "1px solid var(--line-strong)",
+                        background: ativo ? "var(--accent)" : "var(--surface)",
+                        color: ativo ? "var(--accent-ink)" : "var(--ink)",
+                      }}
+                    >
+                      {rot}
+                    </button>
+                  );
+                })}
+              </div>
+              {tentou && d.vaiSuporte == null && <div style={{ textAlign: "center", color: "var(--locked)", fontSize: 14 }}>Escolha Sim ou Não para continuar.</div>}
             </>
           )}
           {passo === ULTIMO && (
@@ -8553,13 +8897,13 @@ function FichaPeca({ pedido, ambienteId, pecaId, papel, nome, onChange, onBack }
       {peca.produto === "Cortina" ? (
         canVerMateriaisProducao(papel) && (
           <Section title="Orçamento">
-            <FichaOrcamento peca={peca} papel={papel} onUpdateOrcamento={updatePecaOrcamento} />
+            <FichaOrcamento peca={peca} papel={papel} onUpdateOrcamento={updatePecaOrcamento} onUpdatePeca={updatePeca} />
           </Section>
         )
       ) : null}
       {peca.produto === "Persiana" && calcPersiana.usa && canVerValores(papel) && (
         <Section title="Orçamento">
-          <FichaOrcamentoPersiana peca={peca} calc={calcPersiana} editar={canEditarOrcamento(papel)} onUpdate={updatePecaOrcPersiana} />
+          <FichaOrcamentoPersiana peca={peca} calc={calcPersiana} editar={canEditarOrcamento(papel)} onUpdate={updatePecaOrcPersiana} onUpdatePeca={updatePeca} />
         </Section>
       )}
       {(peca.produto !== "Cortina" || !MODELOS_COM_ORCAMENTO.includes(peca.modelo)) &&
