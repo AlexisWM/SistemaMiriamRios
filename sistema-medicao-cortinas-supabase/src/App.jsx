@@ -83,6 +83,7 @@ import {
   List as ListIcon,
   Copy,
   ClipboardPaste,
+  Download,
 } from "lucide-react";
 
 /* ============================================================
@@ -2450,7 +2451,7 @@ export default function App() {
       )}
 
       {route.screen === "painel" && canGerenciarUsuarios(session.papel) && (
-        <PainelGestorScreen usuarios={usuarios} index={index} onBack={() => setRoute({ screen: "lista" })} />
+        <PainelGestorScreen papel={session?.papel} usuarios={usuarios} index={index} onBack={() => setRoute({ screen: "lista" })} />
       )}
     </Shell>
   );
@@ -3326,7 +3327,7 @@ function UserMenuOverlay({ session, index, onClose, onLogout, onOpenUsuarios, on
    em "Informações"), só que para todo mundo que pode ser vendedor de um
    pedido (Vendedor, Gestor, Gestor Master), lado a lado.
    ============================================================ */
-function PainelGestorScreen({ usuarios, index, onBack }) {
+function PainelGestorScreen({ usuarios, index, onBack, papel }) {
   const [carregando, setCarregando] = useState(true);
   const [vendas, setVendas] = useState([]);
   const [cortinas, setCortinas] = useState([]);
@@ -3445,8 +3446,8 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
         <ArrowLeft size={14} /> Voltar
       </button>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16 }}>
-        <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: 34, lineHeight: 1.05, margin: 0 }}>Painel de vendas</h1>
           <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #E8A870, #B96C3F)", margin: "8px 0 6px" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -3458,14 +3459,23 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
               <ChevronRight size={16} />
             </button>
           </div>
-          <button onClick={exportarCSV} style={{ ...ghostBtnStyle, marginTop: 10, width: "auto" }}>
-            Exportar todas as vendas (planilha)
-          </button>
         </div>
-        <span style={painelPillStyle}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)" }} />
-          Ao vivo
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          {isGestor(papel) && (
+            <button
+              onClick={exportarCSV}
+              title="Baixar planilha com todas as vendas"
+              aria-label="Baixar planilha com todas as vendas"
+              style={{ background: "none", border: "1px solid var(--line)", borderRadius: 999, padding: 8, color: "var(--ink-soft)", display: "flex" }}
+            >
+              <Download size={16} />
+            </button>
+          )}
+          <span style={painelPillStyle}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)" }} />
+            Ao vivo
+          </span>
+        </div>
       </div>
 
       {carregando ? (
