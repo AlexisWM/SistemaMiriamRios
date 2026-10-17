@@ -4,6 +4,8 @@ import {
   loadIndex,
   saveIndex,
   loadPedido,
+  loadVendasHistorico,
+  loadPerdidosHistorico,
   savePedido,
   nextNumero,
   getSessaoAtual,
@@ -30,7 +32,7 @@ import {
 } from "./lib/db";
 import { supabase } from "./lib/supabaseClient";
 import {
-  calcularOrcamentoPersiana,
+  calcularOrcamentoPersiana as calcularOrcamentoPersianaViva,
   aplicarPrecosPersiana,
   orcamentoPersianaPadrao,
   CORES_ACESSORIO_PERSIANA,
@@ -783,7 +785,38 @@ function motivoBloqueioVenda(peca) {
   return calc.resumo?.bloqueioSuporte || null;
 }
 
+// Orçamento congelado na venda: depois de "Venda feita" o detalhamento
+// (materiais, quantidades, preços) fica gravado na peça e é SEMPRE lido
+// de lá — mudar a tabela de preços depois não altera o histórico.
+function calcularOrcamentoPersiana(peca) {
+  if (peca.vendaFeitaEm && !peca.orcAberto && peca.calcCongelado?.persiana) return peca.calcCongelado.persiana;
+  return calcularOrcamentoPersianaViva(peca);
+}
+// Grava o instantâneo do orçamento (com os preços de hoje). Chamar ANTES de
+// marcar vendaFeitaEm na peça.
+function instantaneoOrcamento(peca) {
+  try {
+    const patch = {};
+    if (peca.produto === "Cortina" && MODELOS_COM_ORCAMENTO.includes(peca.modelo)) {
+      const c = calcularOrcamentoPeca(peca);
+      if (c.usaOrcamento) patch.cortina = JSON.parse(JSON.stringify(c));
+    } else if (peca.produto === "Persiana") {
+      const c = calcularOrcamentoPersianaViva(peca);
+      if (c.usa && c.pronto) patch.persiana = JSON.parse(JSON.stringify(c));
+    }
+    if (!patch.cortina && !patch.persiana) return {};
+    return { calcCongelado: patch, congeladoEm: new Date().toISOString() };
+  } catch (e) {
+    return {};
+  }
+}
+// Campos que marcam a venda como feita (e já congelam o orçamento).
+function patchVendaFeita(peca, nome, iso) {
+  return { ...instantaneoOrcamento(peca), vendaFeitaPor: nome, vendaFeitaEm: iso };
+}
+
 function calcularOrcamentoPeca(peca) {
+  if (peca.vendaFeitaEm && !peca.orcAberto && peca.calcCongelado?.cortina) return peca.calcCongelado.cortina;
   const orc = peca.orcamento || orcamentoPadrao();
   const larguraReal = peca.largura;
   const modelo = peca.produto === "Cortina" ? peca.modelo : null;
@@ -1384,7 +1417,7 @@ const REVERTER_ETAPA = {
   },
   "Venda Feita": {
     anterior: "Orçamento Passado",
-    aplicar: (p) => (p.vendaFeitaEm ? { ...p, vendaFeitaPor: null, vendaFeitaEm: null } : p),
+    aplicar: (p) => (p.vendaFeitaEm ? { ...p, vendaFeitaPor: null, vendaFeitaEm: null, calcCongelado: null, congeladoEm: null } : p),
   },
 };
 function podeVoltarEtapa(status) {
@@ -1487,6 +1520,34 @@ function hojeISO() {
 /* Todas as vendas confirmadas (peça a peça) dos pedidos dos vendedores
    informados — base do Painel de vendas (mês ou dia) e do detalhamento. */
 async function coletarVendas(index) {
+  // Caminho rápido: histórico no banco (tabela `vendas`). Se ela ainda não
+  // existe, cai no caminho antigo (abre cada pedido).
+  const hist = await loadVendasHistorico();
+  if (hist) {
+    const vendas = hist
+      .filter((r) => r.valor && r.vendedor && r.vendido_em)
+      .map((r) => ({
+        vendedor: r.vendedor,
+        pedidoNumero: r.pedido_numero,
+        cliente: r.cliente,
+        ambiente: r.ambiente,
+        codigo: r.codigo,
+        valor: Number(r.valor),
+        quando: r.vendido_em,
+        dia: dataLocalISO(r.vendido_em),
+      }));
+    const cortinas = hist
+      .filter((r) => r.produto === "Cortina" && (r.disponivel_em || r.instalado_em))
+      .map((r) => ({
+        fabricadaDia: r.disponivel_em ? dataLocalISO(r.disponivel_em) : null,
+        instaladaDia: r.instalado_em ? dataLocalISO(r.instalado_em) : null,
+        aguardando: !!r.disponivel_em && !r.instalado_em,
+      }));
+    return { vendas, cortinas };
+  }
+  return coletarVendasPorPedido(index);
+}
+async function coletarVendasPorPedido(index) {
   const lista = [];
   const cortinas = []; // cortinas fabricadas / instaladas (com a data de cada etapa)
   for (const p of index) {
@@ -1551,6 +1612,8 @@ function normalizarPeca(p) {
     valor: p.valor ?? null,
     orcamento: p.orcamento ?? null,
     orcamentoPersiana: p.orcamentoPersiana ?? null,
+    calcCongelado: p.calcCongelado ?? null,
+    congeladoEm: p.congeladoEm ?? null,
     historico: p.historico ?? [],
     statusProducao: p.statusProducao ?? null,
     vendaFeitaPor: p.vendaFeitaPor ?? null,
@@ -1865,6 +1928,9 @@ function canAgendar(papel) {
    salva, só Gestor/Gestor Master apagam — mesma lógica de bloqueio já usada
    para editar uma medição salva. */
 function canDeletePeca(peca, papel) {
+  // Peça com venda feita é histórico de faturamento: só some se a venda for
+  // desfeita antes ("Voltar etapa").
+  if (peca.vendaFeitaEm) return false;
   if (peca.locked) return isGestor(papel);
   return canEditStructure(papel);
 }
@@ -3264,7 +3330,9 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
   const [carregando, setCarregando] = useState(true);
   const [vendas, setVendas] = useState([]);
   const [cortinas, setCortinas] = useState([]);
+  const [perdidosHist, setPerdidosHist] = useState(null);
   const [periodo, setPeriodo] = useState("mes"); // "mes" | "dia"
+  const [mesSel, setMesSel] = useState(mesAtualISO()); // mês exibido ("AAAA-MM") — dá pra voltar a meses antigos
   const [dia, setDia] = useState(hojeISO());
   const [detalhe, setDetalhe] = useState(false); // detalhamento de todas as vendas do ranking
 
@@ -3274,8 +3342,9 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
     let cancelado = false;
     (async () => {
       setCarregando(true);
-      const r = await coletarVendas(index);
+      const [r, ph] = await Promise.all([coletarVendas(index), loadPerdidosHistorico()]);
       if (!cancelado) {
+        setPerdidosHist(ph);
         setVendas(r.vendas);
         setCortinas(r.cortinas);
         setCarregando(false);
@@ -3287,16 +3356,18 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuarios, index]);
 
-  const anoMes = mesAtualISO();
+  const anoMes = mesSel;
   const noPeriodo = (iso) => (periodo === "mes" ? iso.slice(0, 7) === anoMes : iso === dia);
   const vendasPeriodo = vendas.filter((v) => noPeriodo(v.dia));
   const cortinasFabricadas = cortinas.filter((c) => c.fabricadaDia && noPeriodo(c.fabricadaDia)).length;
   const cortinasInstaladas = cortinas.filter((c) => c.instaladaDia && noPeriodo(c.instaladaDia)).length;
   const cortinasAguardando = cortinas.filter((c) => c.aguardando).length;
+  // Valor perdido = o do dia em que foi marcado perdido (histórico no banco);
+  // sem histórico, usa o total atual do pedido.
   const perdidoDe = (nome) =>
     index
       .filter((p) => (nome == null || p.vendedor === nome) && p.status === "Orçamento Perdido" && p.perdidoEm && noPeriodo(dataLocalISO(p.perdidoEm)))
-      .reduce((soma, p) => soma + (p.valorTotal || 0), 0);
+      .reduce((soma, p) => soma + (perdidosHist && perdidosHist[p.id] != null ? perdidosHist[p.id] : p.valorTotal || 0), 0);
   const dados = relevantes
     .map((u) => ({
       usuario: u,
@@ -3324,7 +3395,33 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
   const fatias = Object.entries(porVendedor)
     .map(([nomeV, valor]) => ({ nome: nomeV, valor }))
     .sort((x, y) => y.valor - x.valor);
-  const mesLabel = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const mesLabel = new Date(Number(mesSel.slice(0, 4)), Number(mesSel.slice(5, 7)) - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const mudarMes = (delta) => {
+    const [y, m] = mesSel.split("-").map(Number);
+    const novo = new Date(y, m - 1 + delta, 1);
+    const iso = `${novo.getFullYear()}-${String(novo.getMonth() + 1).padStart(2, "0")}`;
+    if (iso <= mesAtualISO()) setMesSel(iso);
+  };
+  const exportarCSV = () => {
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const linhas = [["Data", "Pedido", "Cliente", "Ambiente", "Peça", "Vendedor", "Valor"].map(esc).join(";")];
+    [...vendas]
+      .sort((x, y) => (x.quando < y.quando ? -1 : 1))
+      .forEach((v) =>
+        linhas.push(
+          [v.dia.split("-").reverse().join("/"), v.pedidoNumero, v.cliente, v.ambiente, v.codigo, v.vendedor, String(v.valor).replace(".", ",")].map(esc).join(";")
+        )
+      );
+    const blob = new Blob(["\ufeff" + linhas.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const el = document.createElement("a");
+    el.href = url;
+    el.download = `vendas-${hojeISO()}.csv`;
+    document.body.appendChild(el);
+    el.click();
+    el.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
   const diaLabel = new Date(dia + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
   const porLabel = periodo === "mes" ? "mês" : "dia";
   // Só aparece depois do clique em "Ver todas as vendas": inclui TODOS
@@ -3352,7 +3449,18 @@ function PainelGestorScreen({ usuarios, index, onBack }) {
         <div>
           <h1 style={{ fontSize: 34, lineHeight: 1.05, margin: 0 }}>Painel de vendas</h1>
           <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #E8A870, #B96C3F)", margin: "8px 0 6px" }} />
-          <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>{mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1)}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button onClick={() => mudarMes(-1)} aria-label="Mês anterior" style={{ ...ghostBtnStyle, padding: "6px 10px" }}>
+              <ChevronLeft size={16} />
+            </button>
+            <div style={{ fontSize: 15, color: "var(--ink)", fontWeight: 600, minWidth: 120, textAlign: "center" }}>{mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1)}</div>
+            <button onClick={() => mudarMes(1)} disabled={mesSel >= mesAtualISO()} aria-label="Próximo mês" style={{ ...ghostBtnStyle, padding: "6px 10px", opacity: mesSel >= mesAtualISO() ? 0.35 : 1 }}>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          <button onClick={exportarCSV} style={{ ...ghostBtnStyle, marginTop: 10, width: "auto" }}>
+            Exportar todas as vendas (planilha)
+          </button>
         </div>
         <span style={painelPillStyle}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)" }} />
@@ -5665,7 +5773,7 @@ function PedidoDetail({
       ...pedido,
       ambientes: pedido.ambientes.map((a) => ({
         ...a,
-        pecas: a.pecas.map((p) => (p.locked && !p.vendaFeitaEm && !motivoBloqueioVenda(p) ? { ...p, vendaFeitaPor: nome, vendaFeitaEm: iso } : p)),
+        pecas: a.pecas.map((p) => (p.locked && !p.vendaFeitaEm && !motivoBloqueioVenda(p) ? { ...p, ...patchVendaFeita(p, nome, iso) } : p)),
       })),
     };
     onChange(updated);
@@ -5778,7 +5886,7 @@ function PedidoDetail({
             <Pencil size={16} />
           </button>
         )}
-        {canExcluirPedido(papel) && !editandoInfo && (
+        {canExcluirPedido(papel) && !editandoInfo && (papel === "Gestor Master" || !pedido.ambientes.some((a) => a.pecas.some((p) => p.vendaFeitaEm))) && (
           <button
             onClick={() => setExcluindoPedido(true)}
             title="Excluir pedido"
@@ -5793,7 +5901,7 @@ function PedidoDetail({
       {excluindoPedido && (
         <ConfirmDialog
           title={`Excluir o pedido ${pedidoLabel(pedido.numero)} de "${pedido.cliente}"?`}
-          message={`Ambientes, peças, medidas, orçamento e agendamentos deste pedido serão apagados de vez. Não dá para desfazer.${erroExcluirPedido ? "\n\n" + erroExcluirPedido : ""}`}
+          message={`Ambientes, peças, medidas, orçamento e agendamentos deste pedido serão apagados de vez. Não dá para desfazer.${pedido.ambientes.some((a) => a.pecas.some((p) => p.vendaFeitaEm)) ? "\n\nATENÇÃO: este pedido tem venda feita — as vendas continuam no histórico de faturamento, mas o detalhe do pedido se perde." : ""}${erroExcluirPedido ? "\n\n" + erroExcluirPedido : ""}`}
           confirmLabel={apagandoPedido ? "Excluindo…" : "Excluir pedido"}
           onConfirm={async () => {
             setApagandoPedido(true);
@@ -6279,10 +6387,14 @@ function useMedicaoDraft(peca, papel, nome, onUpdate) {
   const [obs, setObs] = useState(peca.observacoes || "");
   const [attemptedSave, setAttemptedSave] = useState(false);
   const [vaiSuporte, setVaiSuporte] = useState(peca.vaiSuporte ?? null);
+  const [tetoAoChao, setTetoAoChao] = useState(peca.tetoAoChao ?? null);
 
   useEffect(() => {
     setVaiSuporte(peca.vaiSuporte ?? null);
   }, [peca.vaiSuporte]);
+  useEffect(() => {
+    setTetoAoChao(peca.tetoAoChao ?? null);
+  }, [peca.tetoAoChao]);
 
   useEffect(() => {
     setLarguraRaw(numToDigits(peca.largura));
@@ -6307,7 +6419,7 @@ function useMedicaoDraft(peca, papel, nome, onUpdate) {
           para: field === "observacoes" ? val || "—" : fmtMedida(val) || "—",
         },
       ];
-      onUpdate({ [field]: val, historico });
+      onUpdate({ [field]: val, historico, ...(peca.vendaFeitaEm ? { orcAberto: true } : {}) });
     } else {
       onUpdate({ [field]: val });
     }
@@ -6322,6 +6434,18 @@ function useMedicaoDraft(peca, papel, nome, onUpdate) {
   const commitObs = () => {
     if (!peca.locked) return;
     applyChange("observacoes", obs);
+  };
+  const salvarTetoAoChao = (v) => {
+    setTetoAoChao(v);
+    if (!peca.locked || peca.tetoAoChao === v) return;
+    const { data, hora } = nowParts();
+    onUpdate({
+      tetoAoChao: v,
+      historico: [
+        ...peca.historico,
+        { usuario: nome, data, hora, campo: "Teto ao chão", de: peca.tetoAoChao == null ? "—" : peca.tetoAoChao ? "Sim" : "Não", para: v ? "Sim" : "Não" },
+      ],
+    });
   };
 
   const missing = attemptedSave
@@ -6342,6 +6466,7 @@ function useMedicaoDraft(peca, papel, nome, onUpdate) {
       alturaCurta: digitsToNum(alturaCurtaRaw),
       observacoes: obs,
       ...(vaiSuporte != null ? { vaiSuporte } : {}),
+      ...(tetoAoChao != null ? { tetoAoChao } : {}),
       locked: true,
       savedBy: nome,
       savedAt: iso,
@@ -6359,6 +6484,9 @@ function useMedicaoDraft(peca, papel, nome, onUpdate) {
     setObs,
     vaiSuporte,
     setVaiSuporte,
+    tetoAoChao,
+    setTetoAoChao,
+    salvarTetoAoChao,
     commitField,
     commitObs,
     handleConcluir,
@@ -6380,7 +6508,7 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
   const corSituacao = peca.statusProducao ? statusPedidoColor(peca.statusProducao) : peca.locked ? "var(--success)" : "var(--amber)";
   const medidaTxt =
     peca.largura && peca.altura
-      ? `${fmtMedida(peca.largura)} × ${fmtMedida(peca.altura)} m${peca.alturaCurta ? ` (curta ${fmtMedida(peca.alturaCurta)})` : ""}`
+      ? `${fmtMedida(peca.largura)} × ${fmtMedida(peca.altura)} m${peca.alturaCurta ? ` (curta ${fmtMedida(peca.alturaCurta)})` : ""}${peca.tetoAoChao ? " · teto ao chão" : ""}`
       : "Sem medida";
   const cardBase = {
     border: "1px solid var(--line)",
@@ -6538,7 +6666,7 @@ function ProducaoControls({ peca, papel, nome, onUpdate }) {
 
   const marcarVenda = () => {
     const { iso } = nowParts();
-    onUpdate({ vendaFeitaPor: nome, vendaFeitaEm: iso });
+    onUpdate(patchVendaFeita(peca, nome, iso));
     setConfirmando(null);
   };
   const enviar = () => {
@@ -7412,17 +7540,17 @@ function gerarHtmlFichaProducao(pedido, ambiente, peca, orc, calc) {
 <title>Ficha de Produção — ${escapeHtml(peca.codigo)}</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 28px; color: #111; }
-  h1 { font-size: 20px; margin: 0 0 2px; }
-  .sub { font-size: 12px; color: #666; margin-bottom: 18px; }
-  .row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #e2e2e2; font-size: 13px; }
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 28px; color: #111; font-size: 17px; }
+  h1 { font-size: 30px; margin: 0 0 2px; }
+  .sub { font-size: 17px; color: #666; margin-bottom: 18px; }
+  .row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid #e2e2e2; font-size: 18px; }
   .row .label { color: #666; }
-  .row .value { font-weight: 600; text-align: right; max-width: 60%; }
+  .row .value { font-weight: 600; text-align: right; max-width: 62%; }
   .identificacao { margin-bottom: 18px; }
-  .camada { border: 1px solid #ccc; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; break-inside: avoid; }
-  .camada h3 { font-size: 14px; margin: 0 0 6px; }
-  .nota { font-size: 11.5px; color: #666; font-style: italic; padding-top: 6px; }
-  .obs { font-size: 12.5px; white-space: pre-wrap; border: 1px dashed #bbb; border-radius: 8px; padding: 12px 14px; margin-top: 16px; line-height: 1.5; }
+  .camada { border: 1px solid #ccc; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; break-inside: avoid; }
+  .camada h3 { font-size: 22px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .5px; }
+  .nota { font-size: 16px; color: #666; font-style: italic; padding-top: 6px; }
+  .obs { font-size: 17px; white-space: pre-wrap; border: 1px dashed #bbb; border-radius: 8px; padding: 12px 14px; margin-top: 16px; line-height: 1.5; }
   @media print { body { padding: 12px; } }
 </style>
 </head>
@@ -7434,6 +7562,7 @@ function gerarHtmlFichaProducao(pedido, ambiente, peca, orc, calc) {
     <div class="row"><span class="label">Ambiente</span><span class="value">${escapeHtml(ambiente.nome)}</span></div>
     <div class="row"><span class="label">Peça</span><span class="value">${escapeHtml(peca.tipo)}</span></div>
     <div class="row"><span class="label">Medida do vão (L x A)</span><span class="value">${escapeHtml(fmtMedida(peca.largura) || "—")} x ${escapeHtml(fmtMedida(peca.altura) || "—")}</span></div>
+    ${peca.tetoAoChao != null ? `<div class="row"><span class="label">Medida do teto ao chão</span><span class="value">${peca.tetoAoChao ? "SIM" : "NÃO"}</span></div>` : ""}
     ${corHtml}
     ${aberturaHtml}
   </div>
@@ -7548,7 +7677,8 @@ function OrcCopiarColar({ peca, onUpdatePeca }) {
 function FichaOrcamento({ peca, papel, onUpdateOrcamento, onUpdatePeca }) {
   const orc = peca.orcamento || orcamentoPadrao();
   const calc = calcularOrcamentoPeca(peca);
-  const editar = canEditarOrcamento(papel);
+  // Venda feita: orçamento travado (congelado) — só volta a editar se um Gestor reabrir.
+  const editar = canEditarOrcamento(papel) && !(peca.vendaFeitaEm && !peca.orcAberto);
   const verMateriais = canVerMateriaisProducao(papel);
 
   // Só a camada mais à frente pode ser Wave — se outra ficou marcada Wave
@@ -8534,12 +8664,16 @@ function MedicaoWizard({ peca, d, onClose }) {
   const campos = [
     { titulo: "Qual a largura?", dica: "Em metros. Digite só os números: 180 vira 1,80.", raw: d.larguraRaw, set: d.setLarguraRaw, obrigatorio: true },
     { titulo: "Qual a altura?", dica: "Em metros. Digite só os números: 140 vira 1,40.", raw: d.alturaRaw, set: d.setAlturaRaw, obrigatorio: true },
+    null, // passo 2: teto ao chão (Sim/Não)
     { titulo: "Tem altura curta?", dica: "Só se a peça tiver uma parte mais baixa. Se não tiver, toque em Pular.", raw: d.alturaCurtaRaw, set: d.setAlturaCurtaRaw, obrigatorio: false },
   ];
+  const PASSO_TETO = 2;
+  const PASSO_CURTA = 3;
+  const PASSO_OBS = 4;
   const temSuporte = peca.produto !== "Persiana";
-  const PASSO_SUPORTE = 4;
-  const ULTIMO = temSuporte ? 5 : 4; // conferir
-  const num = passo <= 2;
+  const PASSO_SUPORTE = 5;
+  const ULTIMO = temSuporte ? 6 : 5; // conferir
+  const num = passo === 0 || passo === 1 || passo === PASSO_CURTA;
   const campo = campos[passo];
   const valido = !num || !campo.obrigatorio || (digitsToNum(campo.raw) != null && digitsToNum(campo.raw) > 0);
 
@@ -8555,7 +8689,7 @@ function MedicaoWizard({ peca, d, onClose }) {
   });
 
   const avancar = () => {
-    if (temSuporte && passo === PASSO_SUPORTE && d.vaiSuporte == null) {
+    if ((temSuporte && passo === PASSO_SUPORTE && d.vaiSuporte == null) || (passo === PASSO_TETO && d.tetoAoChao == null)) {
       setTentou(true);
       return;
     }
@@ -8566,8 +8700,8 @@ function MedicaoWizard({ peca, d, onClose }) {
     setPasso((p) => Math.min(ULTIMO, p + 1));
   };
   const pular = () => {
-    if (passo === 2) d.setAlturaCurtaRaw("");
-    if (passo === 3) d.setObs("");
+    if (passo === PASSO_CURTA) d.setAlturaCurtaRaw("");
+    if (passo === PASSO_OBS) d.setObs("");
     setPasso((p) => p + 1);
   };
   const salvar = () => {
@@ -8578,8 +8712,9 @@ function MedicaoWizard({ peca, d, onClose }) {
   const linhas = [
     ["Largura", d.larguraRaw ? formatFromDigits(d.larguraRaw) + " m" : "—", 0],
     ["Altura", d.alturaRaw ? formatFromDigits(d.alturaRaw) + " m" : "—", 1],
-    ["Altura curta", d.alturaCurtaRaw ? formatFromDigits(d.alturaCurtaRaw) + " m" : "Não tem", 2],
-    ["Observações", d.obs || "Nenhuma", 3],
+    ["Do teto ao chão?", d.tetoAoChao == null ? "—" : d.tetoAoChao ? "Sim" : "Não", PASSO_TETO],
+    ["Altura curta", d.alturaCurtaRaw ? formatFromDigits(d.alturaCurtaRaw) + " m" : "Não tem", PASSO_CURTA],
+    ["Observações", d.obs || "Nenhuma", PASSO_OBS],
     ...(temSuporte ? [["Vai suporte?", d.vaiSuporte == null ? "—" : d.vaiSuporte ? "Sim" : "Não", PASSO_SUPORTE]] : []),
   ];
   const podeSalvar = digitsToNum(d.larguraRaw) != null && digitsToNum(d.alturaRaw) != null;
@@ -8625,11 +8760,44 @@ function MedicaoWizard({ peca, d, onClose }) {
               {tentou && !valido && <div style={{ textAlign: "center", color: "var(--locked)", fontSize: 14 }}>Informe um valor maior que zero para continuar.</div>}
             </>
           )}
-          {passo === 3 && (
+          {passo === PASSO_OBS && (
             <>
               <h2 style={{ fontFamily: "var(--display)", fontSize: 38, lineHeight: 1.05, textTransform: "uppercase" }}>Alguma observação?</h2>
               <div style={{ fontSize: 15, color: "var(--ink-soft)", lineHeight: 1.4 }}>Ex.: janela com parapeito, instalar por fora do vão. Se não tiver, toque em Pular.</div>
               <textarea ref={inputRef} className="wiz-area" value={d.obs} onChange={(e) => d.setObs(e.target.value)} placeholder="Escreva aqui…" style={{ ...inputStyle(), resize: "vertical" }} />
+            </>
+          )}
+          {passo === PASSO_TETO && (
+            <>
+              <h2 style={{ fontFamily: "var(--display)", fontSize: 38, lineHeight: 1.05, textTransform: "uppercase" }}>A medida é do teto ao chão?</h2>
+              <div style={{ fontSize: 15, color: "var(--ink-soft)", lineHeight: 1.4 }}>Sim, se a altura vai do teto até o chão. Não, se for só do vão ou parte da parede.</div>
+              <div style={{ display: "flex", gap: 12 }}>
+                {[
+                  [true, "Sim"],
+                  [false, "Não"],
+                ].map(([v, rot]) => {
+                  const ativo = d.tetoAoChao === v;
+                  return (
+                    <button
+                      key={rot}
+                      onClick={() => d.setTetoAoChao(v)}
+                      style={{
+                        flex: 1,
+                        padding: "26px 10px",
+                        borderRadius: 14,
+                        fontSize: 24,
+                        fontWeight: 700,
+                        border: ativo ? "3px solid var(--accent)" : "1px solid var(--line-strong)",
+                        background: ativo ? "var(--accent)" : "var(--surface)",
+                        color: ativo ? "var(--accent-ink)" : "var(--ink)",
+                      }}
+                    >
+                      {rot}
+                    </button>
+                  );
+                })}
+              </div>
+              {tentou && d.tetoAoChao == null && <div style={{ textAlign: "center", color: "var(--locked)", fontSize: 14 }}>Escolha Sim ou Não para continuar.</div>}
             </>
           )}
           {temSuporte && passo === PASSO_SUPORTE && (
@@ -8673,7 +8841,7 @@ function MedicaoWizard({ peca, d, onClose }) {
                 {linhas.map(([rot, val, i], k) => (
                   <button key={rot} onClick={() => setPasso(i)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "14px 16px", background: "none", border: "none", borderTop: k ? "1px solid var(--line)" : "none", color: "var(--ink)", textAlign: "left" }}>
                     <span style={{ color: "var(--ink-soft)", fontSize: 14 }}>{rot}</span>
-                    <span style={{ fontWeight: 700, fontSize: 16, fontFamily: i < 3 ? "var(--mono)" : "inherit", textAlign: "right", minWidth: 0, overflowWrap: "anywhere" }}>{val}</span>
+                    <span style={{ fontWeight: 700, fontSize: 16, fontFamily: i === 0 || i === 1 || i === PASSO_CURTA ? "var(--mono)" : "inherit", textAlign: "right", minWidth: 0, overflowWrap: "anywhere" }}>{val}</span>
                   </button>
                 ))}
               </div>
@@ -8698,7 +8866,7 @@ function MedicaoWizard({ peca, d, onClose }) {
                 <ArrowLeft size={15} /> Voltar
               </button>
             )}
-            {(passo === 2 || passo === 3) && (
+            {(passo === PASSO_CURTA || passo === PASSO_OBS) && (
               <button onClick={pular} style={{ ...ghostBtnStyle, flex: 1, justifyContent: "center", padding: "12px" }}>
                 Pular
               </button>
@@ -8748,6 +8916,79 @@ function MedidaField({ label, raw, setRaw, disabled, error, onBlur, optional }) 
         }}
       />
     </label>
+  );
+}
+
+/* Faixa de status do orçamento depois da venda: congelado (preços do dia da
+   venda) ou reaberto por um Gestor para correção. */
+function OrcamentoCongeladoBanner({ peca, papel, nome, onUpdatePeca }) {
+  const [confirmando, setConfirmando] = useState(null); // "reabrir" | "congelar"
+  if (!peca.vendaFeitaEm || !peca.produto) return null;
+  const gestor = isGestor(papel);
+  const caixa = { fontSize: 13.5, borderRadius: 10, padding: "10px 12px", marginBottom: 12, lineHeight: 1.4 };
+  const dataC = peca.congeladoEm ? new Date(peca.congeladoEm).toLocaleDateString("pt-BR") : null;
+  const reabrir = () => {
+    const { data, hora } = nowParts();
+    onUpdatePeca({
+      orcAberto: true,
+      historico: [...peca.historico, { usuario: nome, data, hora, campo: "Orçamento", de: "Congelado", para: "Reaberto para correção" }],
+    });
+    setConfirmando(null);
+  };
+  const congelar = () => {
+    const { data, hora } = nowParts();
+    const snap = instantaneoOrcamento({ ...peca, vendaFeitaEm: null, orcAberto: false });
+    const novo = snap.calcCongelado?.cortina?.resumo?.total ?? snap.calcCongelado?.persiana?.total ?? peca.valor;
+    onUpdatePeca({
+      ...snap,
+      valor: novo,
+      orcAberto: false,
+      historico: [
+        ...peca.historico,
+        { usuario: nome, data, hora, campo: "Valor da venda", de: fmtValor(peca.valor || 0), para: fmtValor(novo || 0) },
+      ],
+    });
+    setConfirmando(null);
+  };
+  return (
+    <>
+      {confirmando && (
+        <ConfirmDialog
+          title={confirmando === "reabrir" ? "Reabrir o orçamento desta venda?" : "Congelar o orçamento de novo?"}
+          message={
+            confirmando === "reabrir"
+              ? "O orçamento passa a usar os preços de HOJE enquanto estiver reaberto. O valor só muda no faturamento quando você congelar de novo. A ação fica no histórico da peça."
+              : `O orçamento será gravado com os preços de hoje e o valor da venda passa de ${fmtValor(peca.valor || 0)} para o novo total. Fica no histórico da peça.`
+          }
+          confirmLabel={confirmando === "reabrir" ? "Reabrir" : "Congelar"}
+          onConfirm={confirmando === "reabrir" ? reabrir : congelar}
+          onCancel={() => setConfirmando(null)}
+        />
+      )}
+      {peca.orcAberto ? (
+        <div style={{ ...caixa, border: "1px solid var(--amber)", color: "var(--amber)" }}>
+          <b>Orçamento reaberto.</b> Os valores abaixo usam os preços de hoje. Valor vendido (faturamento): <b>{fmtValor(peca.valor || 0)}</b>.
+          {gestor && (
+            <div style={{ marginTop: 8 }}>
+              <button onClick={() => setConfirmando("congelar")} style={{ ...ghostBtnStyle, width: "auto" }}>
+                <Lock size={14} /> Congelar de novo
+              </button>
+            </div>
+          )}
+        </div>
+      ) : peca.calcCongelado && (peca.calcCongelado.cortina || peca.calcCongelado.persiana) ? (
+        <div style={{ ...caixa, border: "1px dashed var(--line-strong)", color: "var(--ink-soft)" }}>
+          🔒 Orçamento congelado na venda{dataC ? ` (${dataC})` : ""} — valores e quantidades são os do dia da venda.
+          {gestor && (
+            <div style={{ marginTop: 8 }}>
+              <button onClick={() => setConfirmando("reabrir")} style={{ ...ghostBtnStyle, width: "auto" }}>
+                Reabrir orçamento (Gestor)
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -8808,6 +9049,19 @@ function FichaPeca({ pedido, ambienteId, pecaId, papel, nome, onChange, onBack }
   // Persiana não é coberta por essa funcionalidade e continua com o Valor
   // manual (ValorPeca), como sempre foi.
   useEffect(() => {
+    // Venda feita: o valor fica CONGELADO (histórico de faturamento real) —
+    // mudar a tabela de preços depois não mexe em pedido já fechado.
+    if (peca.vendaFeitaEm) {
+      // O valor vendido nunca muda sozinho (nem com o orçamento reaberto).
+      // Venda antiga (feita antes do congelamento): grava o instantâneo agora,
+      // mas só se o detalhamento de hoje ainda bate com o valor vendido.
+      if (!peca.calcCongelado && !peca.orcAberto && canEditarOrcamento(papel)) {
+        const snap = instantaneoOrcamento({ ...peca, vendaFeitaEm: null });
+        const tot = snap.calcCongelado?.cortina?.resumo?.total ?? snap.calcCongelado?.persiana?.total;
+        if (tot != null && Math.abs(tot - (peca.valor || 0)) < 0.01) updatePeca(snap);
+      }
+      return;
+    }
     if (MODELOS_COM_ORCAMENTO.includes(peca.modelo)) {
       const calc = calcularOrcamentoPeca(peca);
       if (calc.usaOrcamento && calc.resumo.total !== peca.valor) updatePeca({ valor: calc.resumo.total });
@@ -8821,6 +9075,14 @@ function FichaPeca({ pedido, ambienteId, pecaId, papel, nome, onChange, onBack }
   // continuam como estavam).
   useEffect(() => {
     if (!canEditarOrcamento(papel)) return;
+    if (peca.vendaFeitaEm) {
+      if (!peca.calcCongelado && !peca.orcAberto && peca.produto === "Persiana") {
+        const snap = instantaneoOrcamento({ ...peca, vendaFeitaEm: null });
+        const tot = snap.calcCongelado?.persiana?.total;
+        if (tot != null && Math.abs(tot - (peca.valor || 0)) < 0.01) updatePeca(snap);
+      }
+      return;
+    }
     if (calcPersiana.usa && calcPersiana.pronto && calcPersiana.total !== peca.valor) updatePeca({ valor: calcPersiana.total });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peca.produto, peca.modelo, peca.largura, peca.altura, calcPersiana.pronto, calcPersiana.total]);
@@ -8938,6 +9200,7 @@ function FichaPeca({ pedido, ambienteId, pecaId, papel, nome, onChange, onBack }
         )}
       </Section>
 
+      {canVerMateriaisProducao(papel) && <OrcamentoCongeladoBanner peca={peca} papel={papel} nome={nome} onUpdatePeca={updatePeca} />}
       {peca.produto === "Cortina" ? (
         canVerMateriaisProducao(papel) && (
           <Section title="Orçamento">
@@ -8947,7 +9210,7 @@ function FichaPeca({ pedido, ambienteId, pecaId, papel, nome, onChange, onBack }
       ) : null}
       {peca.produto === "Persiana" && calcPersiana.usa && canVerValores(papel) && (
         <Section title="Orçamento">
-          <FichaOrcamentoPersiana peca={peca} calc={calcPersiana} editar={canEditarOrcamento(papel)} onUpdate={updatePecaOrcPersiana} onUpdatePeca={updatePeca} />
+          <FichaOrcamentoPersiana peca={peca} calc={calcPersiana} editar={canEditarOrcamento(papel) && !(peca.vendaFeitaEm && !peca.orcAberto)} onUpdate={updatePecaOrcPersiana} onUpdatePeca={updatePeca} />
         </Section>
       )}
       {(peca.produto !== "Cortina" || !MODELOS_COM_ORCAMENTO.includes(peca.modelo)) &&
@@ -9048,7 +9311,7 @@ function FichaMedicao({ peca, papel, nome, onUpdate }) {
   const savedDate = peca.savedAt ? new Date(peca.savedAt) : null;
   const medidaTxt =
     peca.largura && peca.altura
-      ? `${fmtMedida(peca.largura)} × ${fmtMedida(peca.altura)} m${peca.alturaCurta ? ` (curta ${fmtMedida(peca.alturaCurta)})` : ""}`
+      ? `${fmtMedida(peca.largura)} × ${fmtMedida(peca.altura)} m${peca.alturaCurta ? ` (curta ${fmtMedida(peca.alturaCurta)})` : ""}${peca.tetoAoChao ? " · teto ao chão" : ""}`
       : null;
   const compacto = { ...cardStyle, padding: "10px 12px" };
 
@@ -9099,6 +9362,31 @@ function FichaMedicao({ peca, papel, nome, onUpdate }) {
         <MedidaField label="Largura" raw={d.larguraRaw} setRaw={d.setLarguraRaw} onBlur={() => d.commitField("largura", d.larguraRaw)} />
         <MedidaField label="Altura" raw={d.alturaRaw} setRaw={d.setAlturaRaw} onBlur={() => d.commitField("altura", d.alturaRaw)} />
         <MedidaField label="Alt. curta" raw={d.alturaCurtaRaw} setRaw={d.setAlturaCurtaRaw} onBlur={() => d.commitField("alturaCurta", d.alturaCurtaRaw)} optional />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13 }}>Do teto ao chão?</span>
+        {[
+          [true, "Sim"],
+          [false, "Não"],
+        ].map(([v, rot]) => {
+          const ativo = peca.tetoAoChao === v;
+          return (
+            <button
+              key={rot}
+              onClick={() => d.salvarTetoAoChao(v)}
+              style={{
+                padding: "6px 18px",
+                borderRadius: 8,
+                fontWeight: 700,
+                border: ativo ? "2px solid var(--accent)" : "1px solid var(--line-strong)",
+                background: ativo ? "var(--accent)" : "var(--surface)",
+                color: ativo ? "var(--accent-ink)" : "var(--ink)",
+              }}
+            >
+              {rot}
+            </button>
+          );
+        })}
       </div>
       <input
         value={d.obs}
