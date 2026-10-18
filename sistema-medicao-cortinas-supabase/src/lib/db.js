@@ -67,6 +67,7 @@ function flagsDeAmbientes(ambientes = []) {
     disponivel: pecas.some((p) => p.statusProducao === "Disponível para instalar"),
     valorTotal: pecas.reduce((soma, p) => soma + (p.valor || 0), 0),
     valorFechado: pecas.filter((p) => !!p.vendaFeitaEm).reduce((soma, p) => soma + (p.valor || 0), 0),
+    descontoPendente: pecas.some((p) => !p.vendaFeitaEm && p.desconto?.status === "pendente"),
   };
 }
 
