@@ -6153,6 +6153,21 @@ function PedidoDetail({
 
       <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <StatusPedidoBadge status={statusAtual} />
+        {canVerValores(papel) && todasPecas.some((p) => p.valor > 0) && (
+          <button
+            onClick={() => {
+              const janela = window.open("", "_blank");
+              if (!janela) return; // pop-up bloqueado
+              janela.document.write(gerarHtmlOrcamentoCliente(pedido));
+              janela.document.close();
+              janela.focus();
+              janela.print();
+            }}
+            style={smallActionStyle}
+          >
+            <Printer size={13} /> Imprimir orçamento
+          </button>
+        )}
         {canEditStructure(papel) &&
           (statusAtual === "Orçamento Perdido" ? (
             <button onClick={reativarPedido} style={smallActionStyle}>
@@ -7624,6 +7639,142 @@ function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/* ORÇAMENTO PARA O CLIENTE (impressão) — uma folha com os dados do cliente,
+   a vendedora, os itens (sem custo de material) e a validade de 10 dias. */
+const ORCAMENTO_VALIDADE_DIAS = 10;
+function descricaoItemOrcamento(peca, ambiente) {
+  const masc = /^(quarto|banheiro|escrit[óo]rio|closet|lavabo|corredor|hall|terra[çc]o|jardim|home|living|bar|sal[ãa]o|espa[çc]o)/i.test(ambiente.nome.trim());
+  const de = peca.tipo === "Porta" ? "da Porta" : "da Janela";
+  const local = `${masc ? "do" : "da"} ${ambiente.nome}`;
+  if (peca.produto === "Cortina") {
+    const calc = calcularOrcamentoPeca(peca);
+    const orc = peca.orcamento || orcamentoPadrao();
+    let modelo = "";
+    const camadasAtivas = [];
+    if (calc.usaOrcamento) {
+      const acab = [];
+      ORDEM_FRENTE_CAMADAS.forEach((chave) => {
+        const cc = calc.camadas?.[chave];
+        if (!cc || !cc.ativo) return;
+        camadasAtivas.push(CAMADA_LABEL[chave]);
+        if (cc.mesclada) return;
+        const ac = cc.forcarFranzido ? "Franzido" : cc.acabamento;
+        if (ac) acab.push([CAMADA_LABEL[chave], ac]);
+      });
+      const unicos = [...new Set(acab.map((x) => x[1]))];
+      modelo = unicos.length === 1 ? ` modelo ${unicos[0].toLowerCase()}` : unicos.length > 1 ? ` (${acab.map((x) => `${x[0]} ${x[1].toLowerCase()}`).join(", ")})` : "";
+    }
+    const em = peca.modelo ? ` em ${peca.modelo.toLowerCase()}` : "";
+    const abertura = ABERTURAS_CORTINA.find((x) => x.chave === orc.abertura)?.label;
+    const detalhes = [abertura && `Abertura: ${abertura.toLowerCase()}`, camadasAtivas.length > 1 && `Camadas: ${camadasAtivas.join(", ")}`].filter(Boolean);
+    return { titulo: `Cortina ${de} ${local}${modelo}${em}`, detalhes };
+  }
+  if (peca.produto === "Persiana") {
+    const detalhes = [];
+    return { titulo: `Persiana${peca.modelo ? " " + peca.modelo.toLowerCase() : ""} ${de} ${local}`, detalhes };
+  }
+  return { titulo: `${peca.tipo} ${local}`, detalhes: [] };
+}
+function gerarHtmlOrcamentoCliente(pedido) {
+  const hoje = new Date();
+  const validade = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + ORCAMENTO_VALIDADE_DIAS);
+  const dataBR = (d) => d.toLocaleDateString("pt-BR");
+  let subtotal = 0;
+  let desconto = 0;
+  let total = 0;
+  let semValor = false;
+  const blocos = pedido.ambientes
+    .filter((a) => a.pecas.length > 0)
+    .map((amb) => {
+      const linhas = amb.pecas
+        .map((peca) => {
+          const valor = peca.valor || 0;
+          let bruto = valor;
+          let desc = 0;
+          if (peca.produto === "Cortina") {
+            const c = calcularOrcamentoPeca(peca);
+            if (c.usaOrcamento) {
+              bruto = c.resumo.totalSemDesconto > 0 ? c.resumo.totalSemDesconto : valor;
+              desc = c.resumo.totalSemDesconto > 0 ? c.resumo.descontoValor || 0 : 0;
+            }
+          } else if (peca.produto === "Persiana") {
+            const c = calcularOrcamentoPersiana(peca);
+            if (c.usa && c.pronto) {
+              bruto = c.totalSemDesconto > 0 ? c.totalSemDesconto : valor;
+              desc = c.descontoValor || 0;
+            }
+          }
+          if (!valor) semValor = true;
+          subtotal += bruto;
+          desconto += desc;
+          total += valor;
+          const it = descricaoItemOrcamento(peca, amb);
+          return `<tr><td class="desc"><div class="t">${escapeHtml(it.titulo)}</div>${it.detalhes.map((d) => `<div class="d">${escapeHtml(d)}</div>`).join("")}</td><td class="val">${valor ? escapeHtml(fmtValor(bruto)) : "a definir"}</td></tr>`;
+        })
+        .join("");
+      return `<h3>${escapeHtml(amb.nome)}</h3><table>${linhas}</table>`;
+    })
+    .join("");
+  const linhaTotal = (rot, val, extra = "") => `<div class="tot ${extra}"><span>${rot}</span><span>${escapeHtml(val)}</span></div>`;
+  const info = (rot, val) => (val ? `<div class="row"><span class="l">${rot}</span><span class="v">${escapeHtml(val)}</span></div>` : "");
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Orçamento ${escapeHtml(pedidoLabel(pedido.numero))} — ${escapeHtml(pedido.cliente)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #111; padding: 32px; font-size: 17px; max-width: 820px; margin: 0 auto; }
+  .topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #b96c3f; padding-bottom: 12px; margin-bottom: 18px; }
+  .loja { font-size: 28px; font-weight: 800; letter-spacing: .3px; }
+  .loja small { display: block; font-size: 14px; font-weight: 500; color: #666; letter-spacing: 1.5px; text-transform: uppercase; }
+  .num { text-align: right; font-size: 15px; color: #444; }
+  .num b { display: block; font-size: 22px; color: #111; }
+  h2 { font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; color: #b96c3f; margin: 22px 0 6px; }
+  .row { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px solid #e4e4e4; }
+  .row .l { color: #666; }
+  .row .v { font-weight: 600; text-align: right; }
+  h3 { font-size: 19px; margin: 18px 0 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 9px 0; border-bottom: 1px solid #e4e4e4; vertical-align: top; }
+  td.val { text-align: right; white-space: nowrap; font-weight: 700; padding-left: 16px; }
+  .t { font-weight: 600; }
+  .d { color: #444; font-size: 16px; margin-top: 2px; }
+  .d.m { font-weight: 600; color: #111; }
+  .totais { margin-top: 22px; margin-left: auto; width: 62%; }
+  .tot { display: flex; justify-content: space-between; padding: 6px 0; }
+  .tot.desc { color: #1d7a46; }
+  .tot.final { border-top: 2px solid #111; margin-top: 6px; padding-top: 10px; font-size: 24px; font-weight: 800; }
+  .validade { margin-top: 26px; border: 2px dashed #b96c3f; border-radius: 10px; padding: 12px 16px; font-size: 17px; }
+  .rodape { margin-top: 34px; display: flex; gap: 40px; font-size: 14px; color: #666; }
+  .rodape div { flex: 1; border-top: 1px solid #999; padding-top: 6px; text-align: center; }
+  @media print { body { padding: 10px; } }
+</style>
+</head>
+<body>
+  <div class="topo">
+    <div class="loja">Cortinas Miriam Rios<small>Orçamento</small></div>
+    <div class="num"><b>${escapeHtml(pedidoLabel(pedido.numero))}</b>Emitido em ${dataBR(hoje)}</div>
+  </div>
+  <h2>Cliente</h2>
+  ${info("Nome", pedido.cliente)}
+  ${info("Telefone", formatTelefone(pedido.telefone))}
+  ${info("CPF", formatCPF(pedido.cpf))}
+  ${info("Endereço", pedido.endereco)}
+  ${info("Vendedor(a)", pedido.vendedor)}
+  <h2>Itens</h2>
+  ${blocos}
+  <div class="totais">
+    ${desconto > 0 ? linhaTotal("Subtotal", fmtValor(subtotal)) + linhaTotal("Desconto", "− " + fmtValor(desconto), "desc") : ""}
+    ${linhaTotal("Total", fmtValor(total), "final")}
+  </div>
+  ${semValor ? '<div class="d" style="margin-top:8px">Alguns itens ainda estão sem valor definido.</div>' : ""}
+  <div class="validade">Este orçamento é válido por <b>${ORCAMENTO_VALIDADE_DIAS} dias</b>, até <b>${dataBR(validade)}</b>.</div>
+  <div class="rodape"><div>${escapeHtml(pedido.vendedor || "Vendedor(a)")}</div><div>${escapeHtml(pedido.cliente)} (aceite)</div></div>
+</body>
+</html>`;
+}
+
 // Monta o HTML autocontido da Ficha de Produção pra impressão — mesma
 // informação do CaracteristicasProducao, mas como documento simples
 // (sem depender do app aberto), com Cliente/Ambiente/Peça no topo e as
@@ -7811,6 +7962,7 @@ function campoOrcamentoDaPeca(peca) {
 // Botões Copiar / Colar orçamento — ficam na linha da peça, ANTES de abrir a ficha.
 function OrcCopiarColar({ peca, onUpdatePeca }) {
   const [, forcar] = useState(0);
+  const [confirmando, setConfirmando] = useState(false);
   useEffect(() => {
     const f = () => forcar((n) => n + 1);
     ouvintesOrcCopiado.add(f);
@@ -7844,6 +7996,12 @@ function OrcCopiarColar({ peca, onUpdatePeca }) {
   };
   const colar = () => {
     const novo = JSON.parse(JSON.stringify(copiado.orcamento));
+    // Metragem de tecido e de COZ dependem da medida de cada peça: não copia.
+    if (novo.camadas) {
+      Object.keys(novo.camadas).forEach((k) => {
+        novo.camadas[k] = { ...novo.camadas[k], qtdTecido: null, qtdCoz: null };
+      });
+    }
     if (novo.suportes) novo.suportes = novo.suportes.map((x) => ({ ...x, id: uid() }));
     onUpdatePeca({
       produto: copiado.produto,
@@ -7851,17 +8009,28 @@ function OrcCopiarColar({ peca, onUpdatePeca }) {
       [copiado.campo]: novo,
       ...(copiado.vaiSuporte != null ? { vaiSuporte: copiado.vaiSuporte } : {}),
     });
+    setConfirmando(false);
   };
   const btn = { ...ghostBtnStyle, width: "auto", padding: "8px 12px", fontSize: 13 };
+  const jaTem = !!peca[campoOrigem || copiado?.campo] && (peca.orcamento || peca.orcamentoPersiana);
   return (
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+      {confirmando && compativel && (
+        <ConfirmDialog
+          title={`Colar o orçamento de ${copiado.codigo} em ${peca.codigo}?`}
+          message={`Acabamento, costura, tipo de trilho/varão, suportes, mão de obra e demais escolhas serão copiados${jaTem ? ", substituindo o orçamento atual desta peça" : ""}. A metragem de tecido e de COZ NÃO é copiada — preencha de novo para esta peça.`}
+          confirmLabel="Colar orçamento"
+          onConfirm={colar}
+          onCancel={() => setConfirmando(false)}
+        />
+      )}
       {campoOrigem && (
         <button onClick={copiar} style={btn}>
           <Copy size={14} /> {copiado && copiado.codigo === peca.codigo ? "Orçamento copiado ✓" : "Copiar orçamento"}
         </button>
       )}
       {compativel && (
-        <button onClick={colar} style={{ ...btn, borderColor: "var(--accent)", color: "var(--accent)" }}>
+        <button onClick={() => setConfirmando(true)} style={{ ...btn, borderColor: "var(--accent)", color: "var(--accent)" }}>
           <ClipboardPaste size={14} /> Colar orçamento de {copiado.codigo}
         </button>
       )}
