@@ -779,8 +779,55 @@ function calcularMaterialCamada(larguraReal, camada, folhas) {
 // Só calcula os modelos em MODELOS_COM_ORCAMENTO — os demais (Varão,
 // Trilho curvo, Trilho com comando, Motorizado) e Persiana não estão
 // cobertos ainda, e usaOrcamento vem false pra a ficha saber disso.
+/* DESCONTO — só incide sobre os PRODUTOS (mão de obra não tem desconto).
+   Limite da loja: 10%. Até 5% o vendedor aplica sozinho; de 5% até 10% precisa
+   da aprovação de um Gestor/Administrativo. Guardado em peca.desconto:
+   { pct (pedido), efetivo (o que de fato abate), status, ... }. */
+const DESCONTO_LIMITE_PCT = 10;
+const DESCONTO_SEM_APROVACAO_PCT = 5;
+function descontoEfetivo(peca) {
+  const e = Number(peca?.desconto?.efetivo);
+  return e > 0 ? e : 0;
+}
+// Aplica o desconto efetivo da peça sobre o total de produtos de um cálculo.
+function descontoSobre(subtotalProdutos, peca) {
+  const pct = descontoEfetivo(peca);
+  const valor = pct > 0 ? Math.round((subtotalProdutos * pct) / 100 * 100) / 100 : 0;
+  return { pct, valor };
+}
+
+// Desconto do pedido (o mesmo em todas as peças ainda não vendidas).
+function descontoDoPedido(pedido) {
+  const pecas = pedido.ambientes.flatMap((a) => a.pecas);
+  const abertas = pecas.filter((p) => !p.vendaFeitaEm && p.desconto);
+  return (abertas[0] || pecas.find((p) => p.desconto) || {}).desconto || null;
+}
+// Recalcula o valor salvo da peça com o desconto vigente (peça vendida não muda).
+function recalcularValorPeca(p) {
+  if (p.vendaFeitaEm) return p;
+  if (p.produto === "Cortina" && MODELOS_COM_ORCAMENTO.includes(p.modelo)) {
+    const c = calcularOrcamentoPeca(p);
+    if (c.usaOrcamento) return { ...p, valor: c.resumo.total };
+  }
+  if (p.produto === "Persiana") {
+    const c = calcularOrcamentoPersiana(p);
+    if (c.usa && c.pronto) return { ...p, valor: c.total };
+  }
+  return p;
+}
+function aplicarDescontoAoPedido(pedido, desconto) {
+  return {
+    ...pedido,
+    ambientes: pedido.ambientes.map((a) => ({
+      ...a,
+      pecas: a.pecas.map((p) => (p.vendaFeitaEm ? p : recalcularValorPeca({ ...p, desconto }))),
+    })),
+  };
+}
+
 // Motivo pelo qual a venda da peça NÃO pode ser marcada como feita (ou null).
 function motivoBloqueioVenda(peca) {
+  if (peca.desconto?.status === "pendente") return "Desconto aguardando aprovação do gestor.";
   const calc = calcularOrcamentoPeca(peca);
   if (!calc.usaOrcamento) return null;
   return calc.resumo?.bloqueioSuporte || null;
@@ -791,7 +838,14 @@ function motivoBloqueioVenda(peca) {
 // de lá — mudar a tabela de preços depois não altera o histórico.
 function calcularOrcamentoPersiana(peca) {
   if (peca.vendaFeitaEm && !peca.orcAberto && peca.calcCongelado?.persiana) return peca.calcCongelado.persiana;
-  return calcularOrcamentoPersianaViva(peca);
+  return comDescontoPersiana(calcularOrcamentoPersianaViva(peca), peca);
+}
+// Persiana não tem mão de obra no orçamento: o desconto vale para o total todo.
+function comDescontoPersiana(c, peca) {
+  if (!c || !c.usa || !c.pronto || c.total == null) return c;
+  const d = descontoSobre(c.total, peca);
+  if (d.valor <= 0) return { ...c, totalSemDesconto: c.total, descontoPct: 0, descontoValor: 0 };
+  return { ...c, totalSemDesconto: c.total, descontoPct: d.pct, descontoValor: d.valor, total: Math.round((c.total - d.valor) * 100) / 100 };
 }
 // Grava o instantâneo do orçamento (com os preços de hoje). Chamar ANTES de
 // marcar vendaFeitaEm na peça.
@@ -802,7 +856,7 @@ function instantaneoOrcamento(peca) {
       const c = calcularOrcamentoPeca(peca);
       if (c.usaOrcamento) patch.cortina = JSON.parse(JSON.stringify(c));
     } else if (peca.produto === "Persiana") {
-      const c = calcularOrcamentoPersianaViva(peca);
+      const c = comDescontoPersiana(calcularOrcamentoPersianaViva(peca), peca);
       if (c.usa && c.pronto) patch.persiana = JSON.parse(JSON.stringify(c));
     }
     if (!patch.cortina && !patch.persiana) return {};
@@ -1152,6 +1206,11 @@ function calcularOrcamentoPeca(peca) {
       totalMaoDeObra
   );
 
+  // Desconto: só nos produtos; a mão de obra (fabricação/instalação) fica de fora.
+  const subtotalProdutos = round2(totalGeral - totalMaoDeObra);
+  const desc = descontoSobre(subtotalProdutos, peca);
+  const totalComDesconto = round2(totalGeral - desc.valor);
+
   // Tubo Vaza sempre precisa de pelo menos 2 suportes (soma das
   // quantidades, não só de linhas adicionadas) — regra inalterada.
   const totalQtdSuportes = suportes.reduce((soma, s) => soma + (s.qtd || 0), 0);
@@ -1253,7 +1312,11 @@ function calcularOrcamentoPeca(peca) {
       ponteira: totalPonteiraValor,
       suportes: totalSuportes,
       maoDeObra: totalMaoDeObra,
-      total: totalGeral,
+      totalSemDesconto: totalGeral,
+      subtotalProdutos,
+      descontoPct: desc.pct,
+      descontoValor: desc.valor,
+      total: totalComDesconto,
       suportesInsuficientes,
       vaiSuporte: respostaSuporte,
       bloqueioSuporte,
@@ -1468,6 +1531,7 @@ function indexFlagsFor(pedido) {
     // que o cartão do Funil mostra a partir de "Venda Feita" em diante.
     valorTotal: pecas.reduce((soma, p) => soma + (p.valor || 0), 0),
     valorFechado: pecas.filter((p) => !!p.vendaFeitaEm).reduce((soma, p) => soma + (p.valor || 0), 0),
+    descontoPendente: pecas.some((p) => !p.vendaFeitaEm && p.desconto?.status === "pendente"),
     perdidoEm: pedido.status === "Orçamento Perdido" ? pedido.perdidoEm || null : null,
   };
 }
@@ -1613,6 +1677,7 @@ function normalizarPeca(p) {
     valor: p.valor ?? null,
     orcamento: p.orcamento ?? null,
     orcamentoPersiana: p.orcamentoPersiana ?? null,
+    desconto: p.desconto ?? null,
     calcCongelado: p.calcCongelado ?? null,
     congeladoEm: p.congeladoEm ?? null,
     historico: p.historico ?? [],
@@ -5441,6 +5506,9 @@ function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated })
                 </span>
                 <span className="c-status">
                   <StatusPedidoBadge status={p.status || "Agendar Medição"} />
+                  {p.descontoPendente && isGestor(papel) && (
+                    <span style={{ ...statusBadgeStyle("var(--amber)"), marginLeft: 6 }}>Desconto a aprovar</span>
+                  )}
                 </span>
                 {mostraValor && (
                   <span className="c-valor" style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 13 }}>
@@ -5474,6 +5542,9 @@ function PedidosList({ index, busca, papel, nome, usuarios, onOpen, onCreated })
                 <div style={{ fontSize: 14.5, fontWeight: 600, marginTop: 2 }}>{p.cliente}</div>
                 <div style={{ marginTop: 4 }}>
                   <StatusPedidoBadge status={p.status || "Agendar Medição"} />
+                  {p.descontoPendente && isGestor(papel) && (
+                    <span style={{ ...statusBadgeStyle("var(--amber)"), marginLeft: 6 }}>Desconto a aprovar</span>
+                  )}
                 </div>
               </div>
               <ChevronRight size={18} color="var(--ink-soft)" />
@@ -5653,6 +5724,118 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
   );
 }
 
+/* Desconto do pedido: só nos produtos (mão de obra fica de fora). Até 5% o
+   vendedor aplica sozinho; de 5% a 10% fica pendente até um Gestor aprovar;
+   acima de 10% não pode. */
+function DescontoPedido({ pedido, papel, nome, onChange }) {
+  const atual = descontoDoPedido(pedido);
+  const [texto, setTexto] = useState("");
+  const [erro, setErro] = useState("");
+  const gestor = isGestor(papel);
+  const pecas = pedido.ambientes.flatMap((a) => a.pecas);
+  const abertas = pecas.filter((p) => !p.vendaFeitaEm);
+  if (!canVerValores(papel) || pecas.length === 0) return null;
+  const efetivo = Number(atual?.efetivo) || 0;
+  const pedido_ = atual?.status === "pendente" ? Number(atual.pct) : null;
+  const economia = abertas.reduce((soma, p) => {
+    if (p.produto === "Cortina" && MODELOS_COM_ORCAMENTO.includes(p.modelo)) return soma + (calcularOrcamentoPeca(p).resumo?.descontoValor || 0);
+    if (p.produto === "Persiana") return soma + (calcularOrcamentoPersiana(p).descontoValor || 0);
+    return soma;
+  }, 0);
+  const agora = () => {
+    const { data, hora } = nowParts();
+    return { data, hora };
+  };
+  const registrar = (acao, de, para) => [...(atual?.log || []), { usuario: nome, ...agora(), acao, de, para }];
+  const grava = (obj) => onChange(aplicarDescontoAoPedido(pedido, obj));
+
+  const aplicar = () => {
+    const limpo = texto.replace(",", ".").replace(/[^0-9.]/g, "");
+    const pct = Math.round(parseFloat(limpo || "0") * 10) / 10;
+    if (Number.isNaN(pct) || pct < 0) return setErro("Informe um percentual válido.");
+    if (pct > DESCONTO_LIMITE_PCT) return setErro(`O máximo é ${DESCONTO_LIMITE_PCT}%.`);
+    setErro("");
+    if (pct === efetivo && !pedido_) return;
+    if (pct === 0) {
+      grava(null);
+      setTexto("");
+      return;
+    }
+    const base = { pct, solicitadoPor: nome, ...agora() };
+    if (gestor || pct <= DESCONTO_SEM_APROVACAO_PCT) {
+      grava({ ...base, efetivo: pct, status: "aprovado", aprovadoPor: gestor ? nome : null, log: registrar(gestor ? "Aplicado pelo gestor" : "Aplicado (até 5%)", efetivo, pct) });
+    } else {
+      // Mais de 5%: fica pendente; enquanto isso vale o que já estava aplicado.
+      grava({ ...base, efetivo, status: "pendente", log: registrar("Pedido de aprovação", efetivo, pct) });
+    }
+    setTexto("");
+  };
+  const aprovar = () => grava({ ...atual, efetivo: atual.pct, status: "aprovado", aprovadoPor: nome, log: registrar("Aprovado", efetivo, atual.pct) });
+  const negar = () =>
+    grava({ ...atual, pct: efetivo, status: "negado", negadoPor: nome, log: registrar("Negado", atual.pct, efetivo) });
+
+  const caixa = { ...cardStyle, padding: "12px 14px", marginBottom: 14 };
+  return (
+    <div style={caixa}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Desconto</div>
+        {efetivo > 0 && (
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--success)" }}>
+            {String(efetivo).replace(".", ",")}% · − {fmtValor(economia)}
+          </div>
+        )}
+      </div>
+      <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.4, marginBottom: 8 }}>
+        Só nos produtos — a mão de obra não tem desconto. Até {DESCONTO_SEM_APROVACAO_PCT}% você mesma aplica; de {DESCONTO_SEM_APROVACAO_PCT}% até {DESCONTO_LIMITE_PCT}% o gestor precisa aprovar.
+      </div>
+      {pedido_ != null && (
+        <div style={{ border: "1px solid var(--amber)", color: "var(--amber)", borderRadius: 10, padding: "8px 10px", fontSize: 13.5, marginBottom: 8 }}>
+          Pedido de <b>{String(pedido_).replace(".", ",")}%</b> aguardando aprovação do gestor. Enquanto isso vale {String(efetivo).replace(".", ",")}%. A venda só pode ser fechada depois da resposta.
+          {gestor && (
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button onClick={aprovar} style={{ ...ghostBtnStyle, flex: 1, justifyContent: "center", color: "var(--success)", borderColor: "var(--success)" }}>
+                Aprovar {String(pedido_).replace(".", ",")}%
+              </button>
+              <button onClick={negar} style={{ ...ghostBtnStyle, flex: 1, justifyContent: "center", color: "var(--locked)" }}>
+                Negar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {atual?.status === "negado" && (
+        <div style={{ fontSize: 13.5, color: "var(--locked)", marginBottom: 8 }}>O gestor não aprovou o desconto maior. Vale {String(efetivo).replace(".", ",")}%.</div>
+      )}
+      {abertas.length === 0 ? (
+        <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>Todas as peças já foram vendidas — o desconto não muda mais.</div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <input
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && aplicar()}
+              inputMode="decimal"
+              placeholder={efetivo > 0 ? `Atual: ${String(efetivo).replace(".", ",")}` : "Ex.: 5"}
+              style={{ ...inputStyle(), paddingRight: 28 }}
+            />
+            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "var(--ink-soft)" }}>%</span>
+          </div>
+          <button onClick={aplicar} style={{ ...primaryBtnStyle(false), marginTop: 0, width: "auto", padding: "10px 18px" }}>
+            Aplicar
+          </button>
+          {efetivo > 0 && (
+            <button onClick={() => grava(null)} style={{ ...ghostBtnStyle, width: "auto" }}>
+              Remover
+            </button>
+          )}
+        </div>
+      )}
+      {erro && <div style={{ color: "var(--locked)", fontSize: 13, marginTop: 6 }}>{erro}</div>}
+    </div>
+  );
+}
+
 /* ============================================================
    PEDIDO DETAIL — accordion of ambientes
    ============================================================ */
@@ -5717,6 +5900,7 @@ function PedidoDetail({
           produto: null,
           modelo: null,
           valor: null,
+          desconto: descontoDoPedido(pedido),
           historico: [],
           statusProducao: null,
           vendaFeitaPor: null,
@@ -5980,6 +6164,8 @@ function PedidoDetail({
             </button>
           ))}
       </div>
+
+      <DescontoPedido pedido={pedido} papel={papel} nome={nome} onChange={onChange} />
 
       {dialogoBulk && (
         <ConfirmDialog
@@ -8346,6 +8532,22 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento, onUpdatePeca }) {
               )}
             </div>
           </div>
+          {calc.resumo.descontoValor > 0 && (
+            <div style={{ marginTop: 8, fontSize: 13.5, color: "var(--ink-soft)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Produtos (sem desconto)</span>
+                <span>{fmtValor(calc.resumo.subtotalProdutos)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "var(--success)" }}>
+                <span>Desconto {String(calc.resumo.descontoPct).replace(".", ",")}% nos produtos</span>
+                <span>− {fmtValor(calc.resumo.descontoValor)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Mão de obra (sem desconto)</span>
+                <span>{fmtValor(calc.resumo.maoDeObra)}</span>
+              </div>
+            </div>
+          )}
           <div
             style={{
               borderTop: "1px solid var(--line)",
@@ -8357,7 +8559,7 @@ function FichaOrcamento({ peca, papel, onUpdateOrcamento, onUpdatePeca }) {
               fontSize: 14.5,
             }}
           >
-            <span>Custo total de materiais</span>
+            <span>{calc.resumo.descontoValor > 0 ? "Total com desconto" : "Custo total de materiais"}</span>
             <span>{fmtValor(calc.resumo.total)}</span>
           </div>
         </div>
@@ -8587,6 +8789,18 @@ function FichaOrcamentoPersiana({ peca, calc, editar, onUpdate, onUpdatePeca }) 
               <div style={{ fontFamily: "var(--mono)", fontSize: 13, flexShrink: 0 }}>{fmtValor(l.valor)}</div>
             </div>
           ))}
+          {calc.descontoValor > 0 && (
+            <div style={{ paddingTop: 8, fontSize: 13.5, color: "var(--ink-soft)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Subtotal (sem desconto)</span>
+                <span>{fmtValor(calc.totalSemDesconto)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "var(--success)" }}>
+                <span>Desconto {String(calc.descontoPct).replace(".", ",")}%</span>
+                <span>− {fmtValor(calc.descontoValor)}</span>
+              </div>
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingTop: 10 }}>
             <span style={{ fontSize: 12, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Total da peça</span>
             <span style={{ fontFamily: "var(--display)", fontSize: 26, fontWeight: 700 }}>{fmtValor(calc.total)}</span>
