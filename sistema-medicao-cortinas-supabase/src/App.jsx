@@ -2675,6 +2675,8 @@ function Shell({
         .prog-tile.ativo { border-color: var(--line-strong); background: var(--accent-soft); cursor: pointer; }
         .prog-tile.ativo em { color: var(--accent); font-weight: 600; }
         @media (max-width: 640px) { .prog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        .tag-amb { display: inline-block; background: var(--grad); color: #04110D; font-weight: 700; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 30px 3px 12px; border-radius: 4px 0 0 4px; clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
+        .tag-amb.grande { font-size: 15px; letter-spacing: 0.01em; text-transform: none; padding: 5px 38px 5px 14px; clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); }
         .num-chip { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); background: var(--field); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
         .acao-btn { display: inline-flex; align-items: center; gap: 7px; background: var(--field); border: 1px solid var(--line-strong); border-radius: 12px; padding: 9px 14px; font-size: 13px; font-weight: 500; color: var(--ink); }
         .acao-btn:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -6049,7 +6051,7 @@ function AvancarPecasDialog({ etapa, pedido, onConfirm, onCancel }) {
         <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
           {grupos.map(({ ambiente, pecas }) => (
             <div key={ambiente.id}>
-              <div className="sec-label">{ambiente.nome}</div>
+              <div style={{ marginBottom: 8 }}><span className="tag-amb">{ambiente.nome}</span></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {pecas.map((p) => {
                   const motivo = cfg.bloqueio ? cfg.bloqueio(p) : null;
@@ -6842,14 +6844,15 @@ function AmbienteAccordion({ ambiente, open, onToggle, papel, nome, onAddPeca, o
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "16px 16px",
-          background: "none",
+          padding: "14px 16px",
+          background: "linear-gradient(90deg, rgba(45,226,181,0.22) 0%, rgba(25,181,232,0.09) 60%, rgba(25,181,232,0.02) 100%)",
           border: "none",
+          borderBottom: open ? "1px solid rgba(45,226,181,0.35)" : "none",
         }}
       >
         <span style={{ textAlign: "left", minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 18, fontWeight: 600 }}>{ambiente.nome}</span>
-          <span style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+          <span className="tag-amb grande">{ambiente.nome}</span>
+          <span style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
             <span className="num-chip" style={{ fontFamily: "var(--sans)", fontSize: 11.5 }}>{count} {count === 1 ? "peça" : "peças"}</span>
             {count > 0 && <span className="num-chip" style={{ fontFamily: "var(--sans)", fontSize: 11.5 }}>{salvas}/{count} medidas</span>}
             {canVerValores(papel) && totalAmb > 0 && <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--accent)", alignSelf: "center" }}>{fmtValor(totalAmb)}</span>}
