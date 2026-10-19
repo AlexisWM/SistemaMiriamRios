@@ -1856,8 +1856,8 @@ function canVerClientes(papel) {
    Identidade visual única e fixa do sistema — veja --accent/--accent-soft/
    --accent-ink no CSS. As cores de status (venda feita, instalado etc.)
    são independentes e fixas: o significado das etiquetas nunca muda. */
-const COR_MARCA = "#E0B681"; // dourado da logo
-const COR_GLOW = "#F3DBA6";
+const COR_MARCA = "#6AAEF2"; // azul da marca
+const COR_GLOW = "#A9D2FF";
 function hexParaRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
   if (!m) return null;
@@ -2547,8 +2547,8 @@ function Shell({
   const [railOpen, setRailOpen] = useState(false);
   const [tema, setTema] = useTema();
   const corAccent = COR_MARCA;
-  const corAccentSoft = "rgba(224,182,129,0.16)";
-  const corAccentInk = "#1A1006";
+  const corAccentSoft = "rgba(106,174,242,0.16)";
+  const corAccentInk = "#06101F";
 
   return (
     <div className="app-shell" style={{ fontFamily: "var(--sans)", color: "var(--ink)" }}>
@@ -2556,15 +2556,15 @@ function Shell({
         ${FONT_IMPORT}
         :root {
           color-scheme: dark;
-          --bg: #0C0B0A;
-          --surface: #151311;
-          --field: #1D1A16;
-          --surface-hi: #272219;
-          --ink: #F7EFDF;
-          --ink-soft: #C2B6A0;
-          --line: rgba(224,182,129,0.24);
-          --line-strong: rgba(224,182,129,0.52);
-          --info: #9CC3EE;
+          --bg: #070B14;
+          --surface: #101A2C;
+          --field: #172640;
+          --surface-hi: #1D2F50;
+          --ink: #FFFFFF;
+          --ink-soft: #B9C6DC;
+          --line: rgba(150,190,255,0.22);
+          --line-strong: rgba(165,205,255,0.50);
+          --info: #8CC4FF;
           --display: 'Montserrat', system-ui, sans-serif;
           --accent: ${corAccent};
           --accent-ink: ${corAccentInk};
@@ -2585,34 +2585,34 @@ function Shell({
           --mono: 'IBM Plex Mono', ui-monospace, monospace;
           --sans: 'Montserrat', system-ui, sans-serif;
           --serif: 'Lustria', Georgia, serif;
-          --shadow-sm: 0 1px 2px rgba(0,0,0,0.45), inset 0 1px 0 rgba(243,219,166,0.07);
+          --shadow-sm: 0 1px 2px rgba(0,0,0,0.45), inset 0 1px 0 rgba(170,205,255,0.07);
           --shadow-md: 0 14px 36px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.45);
-          --card-bg: linear-gradient(160deg, rgba(36,31,25,0.86) 0%, rgba(20,17,14,0.92) 100%);
-          --header-bg: rgba(12,11,10,0.80);
-          --tabs-bg: rgba(12,11,10,0.68);
-          --overlay: rgba(4,3,2,0.74);
-          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(224,182,129,0.20), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(185,138,82,0.14), transparent 65%), linear-gradient(160deg, #221C14 0%, #0F0D0A 100%);
-          --track: rgba(224,182,129,0.12);
-          --panel-bg: rgba(0,0,0,0.38);
-          --placeholder: #9C917D;
-          --row-hover: rgba(224,182,129,0.09);
-          --hero-border: rgba(224,182,129,0.34);
+          --card-bg: linear-gradient(160deg, rgba(24,38,64,0.84) 0%, rgba(13,21,37,0.90) 100%);
+          --header-bg: rgba(7,11,20,0.82);
+          --tabs-bg: rgba(7,11,20,0.66);
+          --overlay: rgba(3,6,14,0.74);
+          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(80,160,255,0.20), transparent 65%), linear-gradient(160deg, #162640 0%, #0C1525 100%);
+          --track: rgba(160,200,255,0.10);
+          --panel-bg: rgba(4,9,20,0.45);
+          --placeholder: #8A9BBA;
+          --row-hover: rgba(120,170,255,0.09);
+          --hero-border: rgba(140,190,255,0.30);
         }
         /* TEMA CLARO — ativado pelo botão sol/lua no cabeçalho. */
         :root[data-tema="claro"] {
           color-scheme: light;
-          --bg: #F6F1E7;
+          --bg: #EEF3FA;
           --surface: #FFFFFF;
-          --field: #FFFDF8;
-          --surface-hi: #EFE7D8;
-          --ink: #1B1610;
-          --ink-soft: #6A5D49;
-          --line: rgba(120,90,40,0.24);
-          --line-strong: rgba(120,90,40,0.52);
+          --field: #FFFFFF;
+          --surface-hi: #E3ECF8;
+          --ink: #0F1B2E;
+          --ink-soft: #52627C;
+          --line: rgba(30,70,130,0.20);
+          --line-strong: rgba(30,70,130,0.46);
           --info: #2B6CB0;
-          --accent: #A9763A;
-          --accent-ink: #FFF8EA;
-          --accent-soft: rgba(169,118,58,0.14);
+          --accent: #2B6CB8;
+          --accent-ink: #FFFFFF;
+          --accent-soft: rgba(43,108,184,0.12);
           --locked: #C0402B;
           --locked-soft: rgba(192,64,43,0.12);
           --success: #1C8449;
@@ -2625,34 +2625,33 @@ function Shell({
           --teal-soft: rgba(13,116,128,0.12);
           --rose: #B2345A;
           --rose-soft: rgba(178,52,90,0.12);
-          --glow: #C99A5B;
-          --shadow-sm: 0 1px 2px rgba(60,40,10,0.10), 0 0 0 1px rgba(60,40,10,0.02);
-          --shadow-md: 0 14px 36px rgba(60,40,10,0.18), 0 2px 8px rgba(60,40,10,0.10);
-          --card-bg: linear-gradient(160deg, #FFFFFF 0%, #FBF7EF 100%);
+          --glow: #4A8FDB;
+          --shadow-sm: 0 1px 2px rgba(15,40,90,0.10), 0 0 0 1px rgba(15,40,90,0.02);
+          --shadow-md: 0 14px 36px rgba(15,40,90,0.18), 0 2px 8px rgba(15,40,90,0.10);
+          --card-bg: linear-gradient(160deg, #FFFFFF 0%, #F3F7FD 100%);
           --header-bg: rgba(255,252,246,0.88);
           --tabs-bg: rgba(255,252,246,0.82);
           --overlay: rgba(27,22,16,0.45);
-          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(224,182,129,0.30), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(185,138,82,0.16), transparent 65%), linear-gradient(160deg, #FFFFFF 0%, #F4ECDD 100%);
+          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(106,174,242,0.30), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(47,111,191,0.16), transparent 65%), linear-gradient(160deg, #FFFFFF 0%, #F4ECDD 100%);
           --track: rgba(120,90,40,0.13);
           --panel-bg: rgba(120,90,40,0.06);
           --placeholder: #8B7D66;
-          --row-hover: rgba(169,118,58,0.09);
-          --hero-border: rgba(169,118,58,0.32);
+          --row-hover: rgba(43,108,184,0.09);
+          --hero-border: rgba(43,108,184,0.32);
         }
         :root[data-tema="claro"] body {
           background-image:
-            radial-gradient(900px 560px at 90% -10%, rgba(224,182,129,0.26), transparent 62%),
-            radial-gradient(780px 520px at -10% 110%, rgba(185,138,82,0.18), transparent 60%),
-            linear-gradient(180deg, #FAF6EE 0%, #EFE7D8 100%);
+            radial-gradient(900px 560px at 90% -10%, rgba(106,174,242,0.26), transparent 62%),
+            radial-gradient(780px 520px at -10% 110%, rgba(47,111,191,0.18), transparent 60%),
+            linear-gradient(180deg, #F6F9FE 0%, #E3ECF8 100%);
           background-size: auto, auto, auto;
         }
-        :root[data-tema="claro"] ::selection { background: rgba(169,118,58,0.28); }
+        :root[data-tema="claro"] ::selection { background: rgba(43,108,184,0.28); }
         .marca-nome {
-          background: linear-gradient(180deg, #F8EBC0 0%, #E0B681 52%, #B98A52 100%);
-          -webkit-background-clip: text; background-clip: text; color: transparent;
+          color: #FFFFFF;
           padding-right: 3px;
         }
-        :root[data-tema="claro"] .marca-nome { background-image: linear-gradient(180deg, #C99A5B 0%, #A9763A 55%, #7A5224 100%); }
+        :root[data-tema="claro"] .marca-nome { color: #0F1B2E; }
         .marca-sub { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 9.5px; font-weight: 500; letter-spacing: 0.5em; color: var(--accent); margin-top: 3px; }
         .marca-linha { flex: 1; height: 1px; background: var(--accent); opacity: 0.7; min-width: 8px; }
         * { box-sizing: border-box; }
@@ -2661,13 +2660,13 @@ function Shell({
           overflow: hidden;
           background-color: var(--bg);
           background-image:
-            radial-gradient(900px 560px at 90% -10%, rgba(224,182,129,0.13), transparent 62%),
-            radial-gradient(780px 520px at -10% 110%, rgba(185,138,82,0.11), transparent 60%),
-            linear-gradient(180deg, #100E0C 0%, #070605 100%);
+            radial-gradient(900px 560px at 90% -10%, rgba(106,174,242,0.13), transparent 62%),
+            radial-gradient(780px 520px at -10% 110%, rgba(47,111,191,0.11), transparent 60%),
+            linear-gradient(180deg, #0A1020 0%, #060A12 100%);
           background-size: auto, auto, auto;
           background-attachment: fixed;
         }
-        ::selection { background: rgba(224,182,129,0.35); }
+        ::selection { background: rgba(106,174,242,0.35); }
         h1 { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
         button { font-family: inherit; cursor: pointer; transition: filter 0.12s ease, box-shadow 0.12s ease, transform 0.05s ease, background-color 0.12s ease; }
         button:not(:disabled):hover { filter: brightness(0.96); }
@@ -2753,7 +2752,7 @@ function Shell({
         .rail-item.active {
           background: var(--accent-soft) !important;
           color: var(--accent) !important;
-          box-shadow: inset 2px 0 0 var(--accent), 0 0 18px rgba(224,182,129,0.16);
+          box-shadow: inset 2px 0 0 var(--accent), 0 0 18px rgba(106,174,242,0.16);
         }
         /* Modo largo (Funil): larga o teto de 640px e deixa só uns 24px de
            margem de cada lado em telas largas — em telas estreitas, max()
@@ -2773,7 +2772,7 @@ function Shell({
         input:focus, select:focus, textarea:focus {
           outline: none;
           border-color: var(--glow) !important;
-          box-shadow: 0 0 0 3px rgba(243,219,166,0.2);
+          box-shadow: 0 0 0 3px rgba(170,210,255,0.2);
         }
         .mobile-tabs { display: none; }
         .mobile-tab {
@@ -2782,9 +2781,9 @@ function Shell({
           color: var(--ink-soft); font-size: 14px; font-weight: 500; white-space: nowrap;
         }
         .mobile-tab.active {
-          background: linear-gradient(90deg, var(--accent-soft), rgba(243,219,166,0.06));
+          background: linear-gradient(90deg, var(--accent-soft), rgba(170,210,255,0.06));
           color: var(--ink); font-weight: 600;
-          box-shadow: inset 3px 0 0 var(--accent), 0 0 18px rgba(224,182,129,0.14);
+          box-shadow: inset 3px 0 0 var(--accent), 0 0 18px rgba(106,174,242,0.14);
         }
         .mobile-tab.active svg { color: var(--accent); }
         @media (max-width: 640px) {
@@ -2796,10 +2795,10 @@ function Shell({
             display: flex; flex-shrink: 0; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
             padding: 8px 12px 6px; background: var(--tabs-bg);
             border-bottom: 1px solid var(--line);
-            scrollbar-width: thin; scrollbar-color: rgba(194,182,160,0.45) transparent;
+            scrollbar-width: thin; scrollbar-color: rgba(176,189,212,0.45) transparent;
           }
           .mobile-tabs::-webkit-scrollbar { height: 4px; }
-          .mobile-tabs::-webkit-scrollbar-thumb { background: rgba(194,182,160,0.45); border-radius: 4px; }
+          .mobile-tabs::-webkit-scrollbar-thumb { background: rgba(176,189,212,0.45); border-radius: 4px; }
           .nav-rail.collapsed { width: 0; border-right: none; }
           .rail-hamburger-desktop { display: none !important; }
           .header-hamburger-mobile { display: flex !important; }
@@ -3204,7 +3203,7 @@ function LoginScreen({ onLogin }) {
   };
 
   return (
-    <div style={{ ...cardStyle, maxWidth: 420, margin: "8vh auto 0", padding: "32px 28px", boxShadow: "var(--shadow-md), 0 0 48px rgba(224,182,129,0.10)" }}>
+    <div style={{ ...cardStyle, maxWidth: 420, margin: "8vh auto 0", padding: "32px 28px", boxShadow: "var(--shadow-md), 0 0 48px rgba(106,174,242,0.10)" }}>
       <div style={{ textAlign: "center", marginBottom: 22 }}>
         <img src="/logo-miriam-rios.png" alt="Cortinas Miriam Rios" style={{ width: "min(300px, 82%)", height: "auto" }} />
       </div>
@@ -3493,7 +3492,7 @@ function PainelGestorScreen({ usuarios, index, onBack, papel }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: 34, lineHeight: 1.05, margin: 0 }}>Painel de vendas</h1>
-          <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #EFCB95, #B98A52)", margin: "8px 0 6px" }} />
+          <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #7DB9F5, #2F6FBF)", margin: "8px 0 6px" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <button onClick={() => mudarMes(-1)} aria-label="Mês anterior" style={{ ...ghostBtnStyle, padding: "6px 10px" }}>
               <ChevronLeft size={16} />
@@ -3543,7 +3542,7 @@ function PainelGestorScreen({ usuarios, index, onBack, papel }) {
                       fontSize: 12.5,
                       fontWeight: 600,
                       background: periodo === k ? "var(--accent)" : "transparent",
-                      color: periodo === k ? "#1A1006" : "var(--ink-soft)",
+                      color: periodo === k ? "#06101F" : "var(--ink-soft)",
                     }}
                   >
                     {l}
@@ -3663,8 +3662,8 @@ function PainelGestorScreen({ usuarios, index, onBack, papel }) {
                         fontFamily: "var(--display)",
                         fontSize: 15,
                         fontWeight: 700,
-                        background: i === 0 && vendas > 0 ? "linear-gradient(135deg, #EFCB95, #B98A52)" : "var(--field)",
-                        color: i === 0 && vendas > 0 ? "#1A1006" : "var(--ink-soft)",
+                        background: i === 0 && vendas > 0 ? "linear-gradient(135deg, #7DB9F5, #2F6FBF)" : "var(--field)",
+                        color: i === 0 && vendas > 0 ? "#FFFFFF" : "var(--ink-soft)",
                         border: "1px solid var(--line)",
                       }}
                     >
@@ -3798,11 +3797,11 @@ const painelHeroStyle = {
   border: "1px solid var(--hero-border)",
   background:
     "var(--hero-bg)",
-  boxShadow: "var(--shadow-md), 0 0 48px rgba(224,182,129,0.09)",
+  boxShadow: "var(--shadow-md), 0 0 48px rgba(106,174,242,0.09)",
 };
 
 /* Barra de progresso (0–100). */
-const CORES_ROSCA = ["#EFCB95", "#6FB1FF", "#7BD3A0", "#C79BFF", "#F0C75E", "#FF8FA3", "#8FD3E8", "#B0B8C8"];
+const CORES_ROSCA = ["#7DB9F5", "#6FB1FF", "#7BD3A0", "#C79BFF", "#F0C75E", "#FF8FA3", "#8FD3E8", "#B0B8C8"];
 /* Gráfico de rosca (pizza vazada): o círculo todo é 100% do faturamento e
    cada fatia é a parte de um vendedor. */
 function PainelRosca({ fatias, total }) {
@@ -4682,7 +4681,7 @@ function KanbanBoard({ usuarios, index, busca, papel, nome, onAbrirPedido, onVol
                         border: "1px solid var(--hero-border)",
                         borderLeft: `3px solid ${cor}`,
                         borderRadius: 12,
-                        boxShadow: "var(--shadow-md), 0 0 24px rgba(224,182,129,0.08)",
+                        boxShadow: "var(--shadow-md), 0 0 24px rgba(106,174,242,0.08)",
                         overflow: "hidden",
                         flexShrink: 0,
                       }}
@@ -7704,12 +7703,12 @@ function gerarHtmlOrcamentoCliente(pedido) {
 <style>
   * { box-sizing: border-box; }
   body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #111; padding: 32px; font-size: 17px; max-width: 820px; margin: 0 auto; }
-  .topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #B98A52; padding-bottom: 12px; margin-bottom: 18px; }
+  .topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #2F6FBF; padding-bottom: 12px; margin-bottom: 18px; }
   .loja { font-size: 28px; font-weight: 800; letter-spacing: .3px; }
   .loja small { display: block; font-size: 14px; font-weight: 500; color: #666; letter-spacing: 1.5px; text-transform: uppercase; }
   .num { text-align: right; font-size: 15px; color: #444; }
   .num b { display: block; font-size: 22px; color: #111; }
-  h2 { font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; color: #B98A52; margin: 22px 0 6px; }
+  h2 { font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; color: #2F6FBF; margin: 22px 0 6px; }
   .row { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px solid #e4e4e4; }
   .row .l { color: #666; }
   .row .v { font-weight: 600; text-align: right; }
@@ -7724,7 +7723,7 @@ function gerarHtmlOrcamentoCliente(pedido) {
   .tot { display: flex; justify-content: space-between; padding: 6px 0; }
   .tot.desc { color: #1d7a46; }
   .tot.final { border-top: 2px solid #111; margin-top: 6px; padding-top: 10px; font-size: 24px; font-weight: 800; }
-  .validade { margin-top: 26px; border: 2px dashed #B98A52; border-radius: 10px; padding: 12px 16px; font-size: 17px; }
+  .validade { margin-top: 26px; border: 2px dashed #2F6FBF; border-radius: 10px; padding: 12px 16px; font-size: 17px; }
   .rodape { margin-top: 34px; display: flex; gap: 40px; font-size: 14px; color: #666; }
   .rodape div { flex: 1; border-top: 1px solid #999; padding-top: 6px; text-align: center; }
   @media print { body { padding: 10px; } }
@@ -9900,8 +9899,8 @@ function primaryBtnStyle(disabled) {
   return {
     width: "100%",
     marginTop: 16,
-    background: disabled ? "#3A342B" : "linear-gradient(135deg, #EFCB95 0%, #B98A52 100%)",
-    color: disabled ? "var(--ink-soft)" : "#1A1006",
+    background: disabled ? "#27324A" : "linear-gradient(135deg, #4F9CEB 0%, #2A63B0 100%)",
+    color: disabled ? "var(--ink-soft)" : "#FFFFFF",
     border: "none",
     borderRadius: 10,
     padding: "11px 14px",
@@ -9912,7 +9911,7 @@ function primaryBtnStyle(disabled) {
     justifyContent: "center",
     gap: 6,
     cursor: disabled ? "not-allowed" : "pointer",
-    boxShadow: disabled ? "none" : "var(--shadow-sm), 0 0 22px rgba(239,203,149,0.28)",
+    boxShadow: disabled ? "none" : "var(--shadow-sm), 0 0 22px rgba(125,185,245,0.28)",
   };
 }
 function inputStyle() {
