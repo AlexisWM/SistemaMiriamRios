@@ -84,13 +84,16 @@ import {
   Copy,
   ClipboardPaste,
   Download,
+  Phone,
+  MapPin,
+  User as UserIcon,
 } from "lucide-react";
 
 /* ============================================================
    TOKENS
    ============================================================ */
 const FONT_IMPORT =
-  "@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,600;1,700&family=Lustria&family=IBM+Plex+Mono:wght@400;500;600&display=swap');";
+  "@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');";
 
 // Modelo da Cortina: 6 estruturas de mecanismo. "Trilho suíço" e "Tubo
 // Vaza" já têm regra de orçamento completa (mesmo motor de cálculo pros
@@ -1856,8 +1859,8 @@ function canVerClientes(papel) {
    Identidade visual única e fixa do sistema — veja --accent/--accent-soft/
    --accent-ink no CSS. As cores de status (venda feita, instalado etc.)
    são independentes e fixas: o significado das etiquetas nunca muda. */
-const COR_MARCA = "#6AAEF2"; // azul da marca
-const COR_GLOW = "#A9D2FF";
+const COR_MARCA = "#2DE2B5";
+const COR_GLOW = "#19B5E8";
 function hexParaRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
   if (!m) return null;
@@ -2544,11 +2547,11 @@ function Shell({
   userMenu,
   rota,
 }) {
-  const [railOpen, setRailOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1000);
   const [tema, setTema] = useTema();
   const corAccent = COR_MARCA;
-  const corAccentSoft = "rgba(106,174,242,0.16)";
-  const corAccentInk = "#06101F";
+  const corAccentSoft = "rgba(45,226,181,0.14)";
+  const corAccentInk = "#03110C";
 
   return (
     <div className="app-shell" style={{ fontFamily: "var(--sans)", color: "var(--ink)" }}>
@@ -2556,26 +2559,27 @@ function Shell({
         ${FONT_IMPORT}
         :root {
           color-scheme: dark;
-          --bg: #070B14;
-          --surface: #101A2C;
-          --field: #172640;
-          --surface-hi: #1D2F50;
+          --bg: #09090B;
+          --surface: #111114;
+          --field: #17171B;
+          --surface-hi: #1F1F25;
           --ink: #FFFFFF;
-          --ink-soft: #B9C6DC;
-          --line: rgba(150,190,255,0.22);
-          --line-strong: rgba(165,205,255,0.50);
-          --info: #8CC4FF;
-          --display: 'Montserrat', system-ui, sans-serif;
+          --ink-soft: #A6A8B3;
+          --line: rgba(255,255,255,0.08);
+          --line-strong: rgba(45,226,181,0.50);
+          --info: #4CC9F0;
+          --display: 'Poppins', system-ui, sans-serif;
           --accent: ${corAccent};
           --accent-ink: ${corAccentInk};
           --accent-soft: ${corAccentSoft};
           --glow: ${COR_GLOW};
+          --grad: linear-gradient(135deg, #34F0B0 0%, #19B5E8 100%);
           --locked: #EE8A78;
           --locked-soft: rgba(238,138,120,0.16);
           --success: #7CC79A;
           --success-soft: rgba(124,199,154,0.15);
-          --amber: #EBC25E;
-          --amber-soft: rgba(235,194,94,0.16);
+          --amber: #E8BC55;
+          --amber-soft: rgba(232,188,85,0.16);
           --orange: #F59A55;
           --orange-soft: rgba(245,154,85,0.16);
           --teal: #6CC4CC;
@@ -2583,91 +2587,115 @@ function Shell({
           --rose: #EA8FA6;
           --rose-soft: rgba(234,143,166,0.16);
           --mono: 'IBM Plex Mono', ui-monospace, monospace;
-          --sans: 'Montserrat', system-ui, sans-serif;
-          --serif: 'Lustria', Georgia, serif;
-          --shadow-sm: 0 1px 2px rgba(0,0,0,0.45), inset 0 1px 0 rgba(170,205,255,0.07);
-          --shadow-md: 0 14px 36px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.45);
-          --card-bg: linear-gradient(160deg, rgba(24,38,64,0.84) 0%, rgba(13,21,37,0.90) 100%);
-          --header-bg: rgba(7,11,20,0.82);
-          --tabs-bg: rgba(7,11,20,0.66);
-          --overlay: rgba(3,6,14,0.74);
-          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(80,160,255,0.20), transparent 65%), linear-gradient(160deg, #162640 0%, #0C1525 100%);
-          --track: rgba(160,200,255,0.10);
-          --panel-bg: rgba(4,9,20,0.45);
-          --placeholder: #8A9BBA;
-          --row-hover: rgba(120,170,255,0.09);
-          --hero-border: rgba(140,190,255,0.30);
+          --sans: 'Poppins', system-ui, sans-serif;
+          --shadow-sm: 0 1px 2px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+          --shadow-md: 0 16px 40px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.45);
+          --card-bg: linear-gradient(160deg, rgba(26,27,32,0.92) 0%, rgba(13,13,16,0.96) 100%);
+          --header-bg: linear-gradient(180deg, rgba(36,200,170,0.26) 0%, rgba(20,110,120,0.10) 55%, rgba(9,9,11,0) 100%);
+          --tabs-bg: rgba(9,9,11,0.55);
+          --overlay: rgba(2,3,4,0.76);
+          --hero-bg: radial-gradient(520px 260px at 100% 0%, rgba(45,226,181,0.22), transparent 65%), linear-gradient(160deg, #1A1B20 0%, #0D0D10 100%);
+          --track: rgba(255,255,255,0.07);
+          --panel-bg: rgba(0,0,0,0.40);
+          --placeholder: #7B7D89;
+          --row-hover: rgba(255,255,255,0.045);
+          --hero-border: rgba(45,226,181,0.30);
         }
         /* TEMA CLARO — ativado pelo botão sol/lua no cabeçalho. */
         :root[data-tema="claro"] {
           color-scheme: light;
-          --bg: #EEF3FA;
+          --bg: #F1F5F6;
           --surface: #FFFFFF;
           --field: #FFFFFF;
-          --surface-hi: #E3ECF8;
-          --ink: #0F1B2E;
-          --ink-soft: #52627C;
-          --line: rgba(30,70,130,0.20);
-          --line-strong: rgba(30,70,130,0.46);
-          --info: #2B6CB0;
-          --accent: #2B6CB8;
-          --accent-ink: #FFFFFF;
-          --accent-soft: rgba(43,108,184,0.12);
+          --surface-hi: #E6EEF0;
+          --ink: #0B1A1C;
+          --ink-soft: #48606A;
+          --line: rgba(10,50,60,0.16);
+          --line-strong: rgba(10,140,120,0.5);
+          --info: #0A86B8;
           --locked: #C0402B;
           --locked-soft: rgba(192,64,43,0.12);
           --success: #1C8449;
           --success-soft: rgba(28,132,73,0.12);
-          --amber: #8A5E08;
-          --amber-soft: rgba(138,94,8,0.13);
+          --amber: #94650A;
+          --amber-soft: rgba(148,101,10,0.13);
           --orange: #C0560A;
           --orange-soft: rgba(192,86,10,0.12);
           --teal: #0D7480;
           --teal-soft: rgba(13,116,128,0.12);
           --rose: #B2345A;
           --rose-soft: rgba(178,52,90,0.12);
-          --glow: #4A8FDB;
-          --shadow-sm: 0 1px 2px rgba(15,40,90,0.10), 0 0 0 1px rgba(15,40,90,0.02);
-          --shadow-md: 0 14px 36px rgba(15,40,90,0.18), 0 2px 8px rgba(15,40,90,0.10);
-          --card-bg: linear-gradient(160deg, #FFFFFF 0%, #F3F7FD 100%);
-          --header-bg: rgba(255,252,246,0.88);
-          --tabs-bg: rgba(255,252,246,0.82);
-          --overlay: rgba(27,22,16,0.45);
-          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(106,174,242,0.30), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(47,111,191,0.16), transparent 65%), linear-gradient(160deg, #FFFFFF 0%, #F4ECDD 100%);
-          --track: rgba(120,90,40,0.13);
-          --panel-bg: rgba(120,90,40,0.06);
-          --placeholder: #8B7D66;
-          --row-hover: rgba(43,108,184,0.09);
-          --hero-border: rgba(43,108,184,0.32);
+          --glow: #0A86B8;
+          --accent: #0B9E85;
+          --accent-ink: #FFFFFF;
+          --accent-soft: rgba(11,158,133,0.12);
+          --grad: linear-gradient(135deg, #19C9A0 0%, #12A5D6 100%);
+          --shadow-sm: 0 1px 2px rgba(20,40,80,0.10), 0 0 0 1px rgba(20,40,80,0.02);
+          --shadow-md: 0 14px 36px rgba(20,40,80,0.18), 0 2px 8px rgba(20,40,80,0.10);
+          --card-bg: linear-gradient(160deg, #FFFFFF 0%, #F5FAFA 100%);
+          --header-bg: linear-gradient(180deg, rgba(25,201,160,0.22), rgba(255,255,255,0.6));
+          --tabs-bg: rgba(255,255,255,0.8);
+          --overlay: rgba(15,26,46,0.45);
+          --hero-bg: radial-gradient(520px 260px at 100% 0%, rgba(25,201,160,0.22), transparent 65%), linear-gradient(160deg, #FFFFFF 0%, #E9F4F3 100%);
+          --track: rgba(30,55,100,0.12);
+          --panel-bg: rgba(30,55,100,0.05);
+          --placeholder: #6A7B99;
+          --row-hover: rgba(10,140,120,0.07);
+          --hero-border: rgba(10,140,120,0.28);
         }
         :root[data-tema="claro"] body {
           background-image:
-            radial-gradient(900px 560px at 90% -10%, rgba(106,174,242,0.26), transparent 62%),
-            radial-gradient(780px 520px at -10% 110%, rgba(47,111,191,0.18), transparent 60%),
-            linear-gradient(180deg, #F6F9FE 0%, #E3ECF8 100%);
+            radial-gradient(900px 420px at 80% -10%, rgba(25,201,160,0.28), transparent 62%),
+            radial-gradient(700px 480px at -10% 110%, rgba(18,165,214,0.12), transparent 60%),
+            linear-gradient(180deg, #F5F9FA 0%, #E8F0F1 100%);
           background-size: auto, auto, auto;
         }
-        :root[data-tema="claro"] ::selection { background: rgba(43,108,184,0.28); }
-        .marca-nome {
-          color: #FFFFFF;
-          padding-right: 3px;
-        }
-        :root[data-tema="claro"] .marca-nome { color: #0F1B2E; }
-        .marca-sub { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 9.5px; font-weight: 500; letter-spacing: 0.5em; color: var(--accent); margin-top: 3px; }
-        .marca-linha { flex: 1; height: 1px; background: var(--accent); opacity: 0.7; min-width: 8px; }
+        :root[data-tema="claro"] ::selection { background: rgba(31,111,209,0.25); }
+        .sec-label { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; color: var(--ink-soft); margin: 0 0 8px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .stat { border-radius: 16px; padding: 12px 14px; background: var(--card-bg); border: 1px solid var(--line); box-shadow: var(--shadow-sm); min-width: 0; }
+        .stat small { display: block; font-size: 11.5px; color: var(--ink-soft); margin-bottom: 4px; }
+        .stat b { display: block; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+        .stat.destaque { background: var(--grad); border-color: transparent; box-shadow: 0 0 26px var(--accent-soft); }
+        .stat.destaque small, .stat.destaque b { color: var(--accent-ink); }
+        .info-linha { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+        .info-linha + .info-linha { border-top: 1px solid var(--line); }
+        .info-linha .ic { width: 32px; height: 32px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .info-linha small { display: block; font-size: 11px; color: var(--ink-soft); }
+        .info-linha span.v { display: block; font-size: 14.5px; font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
+        .info-linha.compacta { padding: 6px 0; gap: 10px; }
+        .info-linha.compacta svg { color: var(--accent); flex-shrink: 0; }
+        .info-linha.compacta .v { font-size: 13.5px; }
+        .prog-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+        .prog-tile { text-align: left; border-radius: 14px; padding: 10px 11px; background: var(--field); border: 1px solid var(--line); color: var(--ink); font-family: inherit; min-width: 0; }
+        .prog-tile small { display: block; font-size: 11px; color: var(--ink-soft); }
+        .prog-tile b { display: block; font-size: 19px; font-weight: 700; margin: 2px 0; }
+        .prog-tile b span { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+        .prog-tile em { display: block; font-style: normal; font-size: 11px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .prog-tile.ativo { border-color: var(--line-strong); background: var(--accent-soft); cursor: pointer; }
+        .prog-tile.ativo em { color: var(--accent); font-weight: 600; }
+        @media (max-width: 640px) { .prog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        .num-chip { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); background: var(--field); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+        .acao-btn { display: inline-flex; align-items: center; gap: 7px; background: var(--field); border: 1px solid var(--line-strong); border-radius: 12px; padding: 9px 14px; font-size: 13px; font-weight: 500; color: var(--ink); }
+        .acao-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .acao-btn.perigo { background: none; border-color: transparent; color: var(--locked); }
+        .etapa-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px; padding: 12px 14px; font-size: 13.5px; font-weight: 600; border: 1px solid var(--line-strong); background: var(--field); color: var(--ink); }
+        .etapa-btn.primario { background: var(--grad); border-color: transparent; color: var(--accent-ink); box-shadow: 0 0 22px var(--accent-soft); }
         * { box-sizing: border-box; }
         html, body, #root { height: 100%; margin: 0; }
         body {
+          font-family: var(--sans);
+          color: var(--ink);
           overflow: hidden;
           background-color: var(--bg);
           background-image:
-            radial-gradient(900px 560px at 90% -10%, rgba(106,174,242,0.13), transparent 62%),
-            radial-gradient(780px 520px at -10% 110%, rgba(47,111,191,0.11), transparent 60%),
-            linear-gradient(180deg, #0A1020 0%, #060A12 100%);
-          background-size: auto, auto, auto;
+            radial-gradient(1000px 420px at 72% -12%, rgba(40,220,180,0.34), transparent 65%),
+            radial-gradient(700px 480px at -8% 0%, rgba(20,130,180,0.16), transparent 62%),
+            linear-gradient(180deg, #0B0B0E 0%, #070708 100%);
           background-attachment: fixed;
         }
-        ::selection { background: rgba(106,174,242,0.35); }
-        h1 { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
+        ::selection { background: rgba(92,200,255,0.35); }
+        h1 { font-family: var(--display); font-weight: 600; text-transform: none; letter-spacing: -0.01em; }
         button { font-family: inherit; cursor: pointer; transition: filter 0.12s ease, box-shadow 0.12s ease, transform 0.05s ease, background-color 0.12s ease; }
         button:not(:disabled):hover { filter: brightness(0.96); }
         button:not(:disabled):active { transform: translateY(1px); }
@@ -2723,7 +2751,8 @@ function Shell({
           right: 0;
           bottom: 0;
           height: 2px;
-          background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 55%, var(--glow) 100%);
+          background: linear-gradient(90deg, transparent 0%, var(--line) 20%, var(--line) 80%, transparent 100%);
+          height: 1px;
         }
         .header-row {
           display: grid;
@@ -2749,11 +2778,28 @@ function Shell({
           .split { grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); gap: 28px; }
           .painel-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
         }
+        .rail-item { border-radius: 12px !important; color: var(--ink-soft) !important; transition: background 0.12s ease, color 0.12s ease; }
+        .rail-item:hover { background: var(--row-hover) !important; color: var(--ink) !important; }
         .rail-item.active {
-          background: var(--accent-soft) !important;
-          color: var(--accent) !important;
-          box-shadow: inset 2px 0 0 var(--accent), 0 0 18px rgba(106,174,242,0.16);
+          background: var(--grad) !important;
+          color: var(--accent-ink) !important;
+          font-weight: 600 !important;
+          box-shadow: 0 0 26px var(--accent-soft), inset 0 1px 0 rgba(255,255,255,0.35);
         }
+        .nav-rail {
+          background: linear-gradient(180deg, rgba(19,20,24,0.96), rgba(9,9,11,0.98)) !important;
+          border-right: 1px solid rgba(255,255,255,0.06) !important;
+        }
+        :root[data-tema="claro"] .nav-rail { background: linear-gradient(180deg, #FFFFFF, #F1F6F7) !important; }
+        .rail-secao { font-size: 10.5px; letter-spacing: 0.14em; font-weight: 600; color: var(--ink-soft); opacity: 0.8; padding: 14px 12px 6px; }
+        .rail-card { margin: 8px; padding: 10px 12px; border-radius: 14px; background: var(--field); border: 1px solid var(--line); display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .rail-card b { display: block; font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rail-card small { display: block; font-size: 11px; color: var(--ink-soft); }
+        .rail-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--grad); color: var(--accent-ink); font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        /* Cartões e blocos arredondados no estilo do painel de referência */
+        .app-shell [style*="var(--card-bg)"], .app-shell [style*="var(--hero-bg)"] { border-radius: 18px !important; border-color: rgba(255,255,255,0.07) !important; }
+        :root[data-tema="claro"] .app-shell [style*="var(--card-bg)"], :root[data-tema="claro"] .app-shell [style*="var(--hero-bg)"] { border-color: var(--line) !important; }
+        .app-shell input, .app-shell select, .app-shell textarea { border-radius: 12px !important; }
         /* Modo largo (Funil): larga o teto de 640px e deixa só uns 24px de
            margem de cada lado em telas largas — em telas estreitas, max()
            garante que ainda cabe (vira 100% da tela). */
@@ -2772,7 +2818,7 @@ function Shell({
         input:focus, select:focus, textarea:focus {
           outline: none;
           border-color: var(--glow) !important;
-          box-shadow: 0 0 0 3px rgba(170,210,255,0.2);
+          box-shadow: 0 0 0 3px rgba(92,200,255,0.2);
         }
         .mobile-tabs { display: none; }
         .mobile-tab {
@@ -2781,11 +2827,10 @@ function Shell({
           color: var(--ink-soft); font-size: 14px; font-weight: 500; white-space: nowrap;
         }
         .mobile-tab.active {
-          background: linear-gradient(90deg, var(--accent-soft), rgba(170,210,255,0.06));
-          color: var(--ink); font-weight: 600;
-          box-shadow: inset 3px 0 0 var(--accent), 0 0 18px rgba(106,174,242,0.14);
+          background: var(--grad); color: var(--accent-ink); font-weight: 600;
+          box-shadow: 0 0 22px var(--accent-soft);
         }
-        .mobile-tab.active svg { color: var(--accent); }
+        .mobile-tab.active svg { color: var(--accent-ink); }
         @media (max-width: 640px) {
           /* Celular: em vez da barra lateral, um menu horizontal que arrasta
              pro lado (igual ao app de trade) logo abaixo do cabeçalho. */
@@ -2795,10 +2840,10 @@ function Shell({
             display: flex; flex-shrink: 0; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
             padding: 8px 12px 6px; background: var(--tabs-bg);
             border-bottom: 1px solid var(--line);
-            scrollbar-width: thin; scrollbar-color: rgba(176,189,212,0.45) transparent;
+            scrollbar-width: thin; scrollbar-color: rgba(143,157,182,0.45) transparent;
           }
           .mobile-tabs::-webkit-scrollbar { height: 4px; }
-          .mobile-tabs::-webkit-scrollbar-thumb { background: rgba(176,189,212,0.45); border-radius: 4px; }
+          .mobile-tabs::-webkit-scrollbar-thumb { background: rgba(143,157,182,0.45); border-radius: 4px; }
           .nav-rail.collapsed { width: 0; border-right: none; }
           .rail-hamburger-desktop { display: none !important; }
           .header-hamburger-mobile { display: flex !important; }
@@ -2887,18 +2932,52 @@ function Shell({
               }}
             >
               {showHome && <ArrowLeft size={18} color="var(--ink-soft)" style={{ flexShrink: 0 }} />}
-              {!showHome && <img src="/logo-flor.png" alt="" style={{ height: 38, width: "auto", flexShrink: 0 }} />}
+              {!showHome && (
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: "var(--grad)",
+                    color: "#03110C",
+                    boxShadow: "inset 0 1px 0 rgba(255,236,214,0.5)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}
+                >
+                  M
+                </div>
+              )}
               <div style={{ minWidth: 0 }}>
                 <div
-                  className="marca-nome"
-                  style={{ fontFamily: "var(--display)", fontSize: 22, fontWeight: 700, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.05, whiteSpace: "nowrap" }}
+                  style={{
+                    fontFamily: "var(--display)",
+                    fontSize: 19,
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    lineHeight: 1.1,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
                 >
-                  Miriam Rios
+                  Cortinas Miriam Rios
                 </div>
-                <div className="marca-sub">
-                  <span className="marca-linha" />
-                  CORTINAS
-                  <span className="marca-linha" />
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--ink-soft)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  Sistema de Gerenciamento de Clientes
                 </div>
               </div>
             </div>
@@ -3082,7 +3161,7 @@ function MobileTabs({ session, rota, onGoHome, onOpenCalendario, onOpenKanban, o
 function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendario, onOpenKanban, onOpenClientes, onOpenPainel, onOpenUserMenu, onLogout, rota }) {
   const papel = session.papel;
   const ir = (fn) => {
-    onCollapse();
+    if (typeof window === "undefined" || window.innerWidth < 1000) onCollapse();
     fn();
   };
 
@@ -3099,7 +3178,8 @@ function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendar
           {open && <span style={{ whiteSpace: "nowrap" }}>Menu</span>}
         </button>
       </div>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, padding: "0 8px", overflowY: "auto" }}>
+      {open && <div className="rail-secao">MENU</div>}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4, padding: "0 8px", overflowY: "auto" }}>
         {itens.map(({ Icon, label, onClick, rotate, telas }) => (
           <button
             key={label}
@@ -3113,6 +3193,15 @@ function NavRail({ session, open, onToggle, onCollapse, onGoHome, onOpenCalendar
           </button>
         ))}
       </div>
+      <button className="rail-card" onClick={() => ir(onOpenUserMenu)} title={session.nome} style={{ cursor: "pointer", textAlign: "left", color: "inherit", justifyContent: open ? "flex-start" : "center", padding: open ? "10px 12px" : "6px 0", margin: open ? 8 : "8px 6px" }}>
+        <span className="rail-avatar">{(session.nome || "?").trim().charAt(0).toUpperCase()}</span>
+        {open && (
+          <span style={{ minWidth: 0 }}>
+            <b>{session.nome}</b>
+            <small>{session.papel}</small>
+          </span>
+        )}
+      </button>
       {/* Só no celular (ver .rail-user-mobile no CSS): usuário entra aqui,
           em cima do Sair, com uma única linha separando os dois do resto —
           no desktop o usuário continua no cabeçalho, e este bloco some. */}
@@ -3203,11 +3292,8 @@ function LoginScreen({ onLogin }) {
   };
 
   return (
-    <div style={{ ...cardStyle, maxWidth: 420, margin: "8vh auto 0", padding: "32px 28px", boxShadow: "var(--shadow-md), 0 0 48px rgba(106,174,242,0.10)" }}>
-      <div style={{ textAlign: "center", marginBottom: 22 }}>
-        <img src="/logo-miriam-rios.png" alt="Cortinas Miriam Rios" style={{ width: "min(300px, 82%)", height: "auto" }} />
-      </div>
-      <h1 style={{ fontSize: 24, lineHeight: 1.05, marginBottom: 6, textAlign: "center" }}>Entrar no sistema</h1>
+    <div style={{ ...cardStyle, maxWidth: 420, margin: "8vh auto 0", padding: "32px 28px", boxShadow: "var(--shadow-md), 0 0 48px rgba(70,160,255,0.08)" }}>
+      <h1 style={{ fontSize: 28, lineHeight: 1.05, marginBottom: 6 }}>Entrar no sistema</h1>
       <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 24 }}>
         Use o usuário e senha cadastrados pelo seu gestor.
       </p>
@@ -3492,7 +3578,7 @@ function PainelGestorScreen({ usuarios, index, onBack, papel }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: 34, lineHeight: 1.05, margin: 0 }}>Painel de vendas</h1>
-          <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #7DB9F5, #2F6FBF)", margin: "8px 0 6px" }} />
+          <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #34F0B0, #19B5E8)", margin: "8px 0 6px" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <button onClick={() => mudarMes(-1)} aria-label="Mês anterior" style={{ ...ghostBtnStyle, padding: "6px 10px" }}>
               <ChevronLeft size={16} />
@@ -3542,7 +3628,7 @@ function PainelGestorScreen({ usuarios, index, onBack, papel }) {
                       fontSize: 12.5,
                       fontWeight: 600,
                       background: periodo === k ? "var(--accent)" : "transparent",
-                      color: periodo === k ? "#06101F" : "var(--ink-soft)",
+                      color: periodo === k ? "#03110C" : "var(--ink-soft)",
                     }}
                   >
                     {l}
@@ -3662,8 +3748,8 @@ function PainelGestorScreen({ usuarios, index, onBack, papel }) {
                         fontFamily: "var(--display)",
                         fontSize: 15,
                         fontWeight: 700,
-                        background: i === 0 && vendas > 0 ? "linear-gradient(135deg, #7DB9F5, #2F6FBF)" : "var(--field)",
-                        color: i === 0 && vendas > 0 ? "#FFFFFF" : "var(--ink-soft)",
+                        background: i === 0 && vendas > 0 ? "linear-gradient(135deg, #34F0B0, #19B5E8)" : "var(--field)",
+                        color: i === 0 && vendas > 0 ? "#03110C" : "var(--ink-soft)",
                         border: "1px solid var(--line)",
                       }}
                     >
@@ -3797,11 +3883,11 @@ const painelHeroStyle = {
   border: "1px solid var(--hero-border)",
   background:
     "var(--hero-bg)",
-  boxShadow: "var(--shadow-md), 0 0 48px rgba(106,174,242,0.09)",
+  boxShadow: "var(--shadow-md), 0 0 48px rgba(70,160,255,0.09)",
 };
 
 /* Barra de progresso (0–100). */
-const CORES_ROSCA = ["#7DB9F5", "#6FB1FF", "#7BD3A0", "#C79BFF", "#F0C75E", "#FF8FA3", "#8FD3E8", "#B0B8C8"];
+const CORES_ROSCA = ["#34F0B0", "#6FB1FF", "#7BD3A0", "#C79BFF", "#F0C75E", "#FF8FA3", "#8FD3E8", "#B0B8C8"];
 /* Gráfico de rosca (pizza vazada): o círculo todo é 100% do faturamento e
    cada fatia é a parte de um vendedor. */
 function PainelRosca({ fatias, total }) {
@@ -4681,7 +4767,7 @@ function KanbanBoard({ usuarios, index, busca, papel, nome, onAbrirPedido, onVol
                         border: "1px solid var(--hero-border)",
                         borderLeft: `3px solid ${cor}`,
                         borderRadius: 12,
-                        boxShadow: "var(--shadow-md), 0 0 24px rgba(106,174,242,0.08)",
+                        boxShadow: "var(--shadow-md), 0 0 24px rgba(70,160,255,0.08)",
                         overflow: "hidden",
                         flexShrink: 0,
                       }}
@@ -5705,8 +5791,357 @@ function NovoPedidoForm({ papel, nome, usuarios, onCancel, onCreated }) {
 /* Desconto do pedido: só nos produtos (mão de obra fica de fora). Até 5% o
    vendedor aplica sozinho; de 5% a 10% fica pendente até um Gestor aprovar;
    acima de 10% não pode. */
-function DescontoPedido({ pedido, papel, nome, onChange }) {
+/* ============================================================
+   ORÇAMENTOS (versões) + PROGRESSO DAS PEÇAS
+   ------------------------------------------------------------
+   `pedido.ambientes` é sempre o orçamento EM USO (é nele que vendas,
+   produção e instalação acontecem). As outras opções ficam guardadas em
+   `pedido.orcamentos.opcoes` (cada uma com as peças/medidas/valores de
+   quando foi guardada). "Novo orçamento" guarda o atual e abre um novo só
+   com as medidas; "Usar este" troca um pelo outro. Desconto é de cada
+   orçamento (vive nas peças dele).
+   ============================================================ */
+const orcNomeAtual = (p) => p.orcamentos?.atual || "Orçamento 1";
+const opcoesSalvas = (p) => p.orcamentos?.opcoes || [];
+const totalDeAmbientes = (ambs) => (ambs || []).flatMap((a) => a.pecas || []).reduce((s, p) => s + (p.valor || 0), 0);
+const orcamentoTemVenda = (p) => p.ambientes.some((a) => a.pecas.some((x) => x.vendaFeitaEm));
+function proximoNomeOrcamento(p) {
+  const nomes = [orcNomeAtual(p), ...opcoesSalvas(p).map((o) => o.nome)];
+  const nums = nomes.map((t) => parseInt((/(\d+)\s*$/.exec(t || "") || [])[1] || "0", 10));
+  return `Orçamento ${Math.max(0, ...nums) + 1}`;
+}
+// Cópia só das MEDIDAS (largura, altura, altura curta, teto ao chão, suporte,
+// observações) — produto, modelo, tecido, valores e desconto começam do zero.
+function copiarSoMedidas(ambientes) {
+  return ambientes.map((a) => ({
+    id: uid(),
+    nome: a.nome,
+    seq: { ...(a.seq || { J: 0, P: 0 }) },
+    pecas: a.pecas.map((p) => ({
+      id: uid(),
+      tipo: p.tipo,
+      codigo: p.codigo,
+      largura: p.largura ?? null,
+      altura: p.altura ?? null,
+      alturaCurta: p.alturaCurta ?? null,
+      ...(p.tetoAoChao != null ? { tetoAoChao: p.tetoAoChao } : {}),
+      ...(p.vaiSuporte != null ? { vaiSuporte: p.vaiSuporte } : {}),
+      observacoes: p.observacoes || "",
+      locked: !!p.locked,
+      savedBy: p.savedBy || null,
+      savedAt: p.savedAt || null,
+      produto: null,
+      modelo: null,
+      valor: null,
+      desconto: null,
+      historico: [],
+      statusProducao: null,
+      vendaFeitaPor: null,
+      vendaFeitaEm: null,
+      producaoPor: null,
+      producaoEm: null,
+      disponivelPor: null,
+      disponivelEm: null,
+      instaladoPor: null,
+      instaladoEm: null,
+    })),
+  }));
+}
+function guardarAtual(p) {
+  return { id: uid(), nome: orcNomeAtual(p), salvoEm: nowParts().iso, ambientes: p.ambientes, total: totalDeAmbientes(p.ambientes) };
+}
+function criarNovoOrcamento(p) {
+  const opcoes = [...opcoesSalvas(p), guardarAtual(p)];
+  return { ...p, ambientes: copiarSoMedidas(p.ambientes), orcamentos: { atual: proximoNomeOrcamento(p), opcoes } };
+}
+function usarOrcamentoSalvo(p, id) {
+  const alvo = opcoesSalvas(p).find((o) => o.id === id);
+  if (!alvo) return p;
+  const opcoes = [...opcoesSalvas(p).filter((o) => o.id !== id), guardarAtual(p)];
+  return { ...p, ambientes: alvo.ambientes, orcamentos: { atual: alvo.nome, opcoes } };
+}
+function removerOrcamentoSalvo(p, id) {
+  return { ...p, orcamentos: { atual: orcNomeAtual(p), opcoes: opcoesSalvas(p).filter((o) => o.id !== id) } };
+}
+
+function OrcamentosCard({ pedido, papel, nome, onChange }) {
+  const [dlg, setDlg] = useState(null); // { tipo: "novo" | "usar" | "excluir", opcao? }
+  const pecas = pedido.ambientes.flatMap((a) => a.pecas);
+  const opcoes = opcoesSalvas(pedido);
+  if (!canVerValores(papel) || (pecas.length === 0 && opcoes.length === 0)) return null;
+  const podeEditar = canEditarOrcamento(papel);
+  const vendido = orcamentoTemVenda(pedido);
+  const total = totalDeAmbientes(pedido.ambientes);
+  const semColuna = pedido.orcamentosAusente === true;
+  const dlgInfo =
+    dlg?.tipo === "novo"
+      ? {
+          title: "Criar um novo orçamento?",
+          message: `O "${orcNomeAtual(pedido)}" fica guardado (${fmtValor(total)}). O novo começa só com as medidas — aí você escolhe outro tecido, trilho, varão, etc.`,
+          confirmLabel: "Criar novo orçamento",
+          onConfirm: () => onChange(criarNovoOrcamento(pedido)),
+        }
+      : dlg?.tipo === "usar"
+      ? {
+          title: `Trocar para "${dlg.opcao.nome}"?`,
+          message: `O "${orcNomeAtual(pedido)}" em uso agora fica guardado como opção. Você pode voltar a ele quando quiser.`,
+          confirmLabel: "Usar este orçamento",
+          onConfirm: () => onChange(usarOrcamentoSalvo(pedido, dlg.opcao.id)),
+        }
+      : dlg?.tipo === "excluir"
+      ? {
+          title: `Excluir "${dlg.opcao.nome}"?`,
+          message: "Essa opção guardada será apagada de vez. Não dá para desfazer.",
+          confirmLabel: "Excluir opção",
+          onConfirm: () => onChange(removerOrcamentoSalvo(pedido, dlg.opcao.id)),
+        }
+      : null;
+  return (
+    <div style={{ ...cardStyle, padding: 14, marginBottom: 16 }}>
+      {dlgInfo && (
+        <ConfirmDialog
+          title={dlgInfo.title}
+          message={dlgInfo.message}
+          confirmLabel={dlgInfo.confirmLabel}
+          onConfirm={() => {
+            dlgInfo.onConfirm();
+            setDlg(null);
+          }}
+          onCancel={() => setDlg(null)}
+        />
+      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+        <div className="sec-label" style={{ margin: 0 }}>Orçamento</div>
+        {podeEditar && pecas.length > 0 && (
+          <button
+            className="acao-btn"
+            style={{ padding: "6px 11px", fontSize: 12.5 }}
+            disabled={vendido || semColuna}
+            onClick={() => setDlg({ tipo: "novo" })}
+            title={vendido ? "Este orçamento já tem venda fechada" : "Guarda este e abre um novo, só com as medidas"}
+          >
+            <Plus size={14} /> Novo orçamento
+          </button>
+        )}
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <span style={{ fontSize: 16, fontWeight: 600 }}>{orcNomeAtual(pedido)}</span>
+          <span className="num-chip" style={{ fontFamily: "var(--sans)", fontSize: 11, marginLeft: 8, color: vendido ? "var(--success)" : "var(--accent)" }}>
+            {vendido ? "Com venda" : "Em uso"}
+          </span>
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)", whiteSpace: "nowrap" }}>{fmtValor(total)}</div>
+      </div>
+      <DescontoPedido pedido={pedido} papel={papel} nome={nome} onChange={onChange} embutido />
+      {semColuna && (
+        <div style={{ fontSize: 12, color: "var(--amber)", marginTop: 10, lineHeight: 1.4 }}>
+          Para guardar várias versões de orçamento, rode o arquivo orcamentos.sql no Supabase (SQL Editor) uma vez.
+        </div>
+      )}
+      {vendido && opcoes.length > 0 && (
+        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 10 }}>Este orçamento tem venda fechada — as outras opções ficam guardadas só para consulta.</div>
+      )}
+      {opcoes.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div className="sec-label">Outras opções guardadas</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {opcoes.map((o) => (
+              <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--field)", border: "1px solid var(--line)", borderRadius: 12, padding: "9px 12px" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{o.nome}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>
+                    {o.salvoEm ? new Date(o.salvoEm).toLocaleDateString("pt-BR") : ""}
+                  </div>
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap" }}>{fmtValor(o.total || 0)}</div>
+                {podeEditar && (
+                  <>
+                    <button className="acao-btn" style={{ padding: "6px 10px", fontSize: 12 }} disabled={vendido} onClick={() => setDlg({ tipo: "usar", opcao: o })}>
+                      Usar
+                    </button>
+                    <button onClick={() => setDlg({ tipo: "excluir", opcao: o })} title="Excluir opção" style={{ background: "none", border: "none", color: "var(--ink-soft)", padding: 4, display: "flex" }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Etapas de uma peça depois da medição: o pop-up deixa escolher QUAIS peças avançam.
+const ETAPAS_PECA = {
+  venda: {
+    titulo: "Fechar venda",
+    acao: "Fechar",
+    sub: "Marque as peças que o cliente fechou.",
+    rotulo: "Venda feita",
+    elegivel: (p) => p.locked && !p.vendaFeitaEm,
+    bloqueio: (p) => motivoBloqueioVenda(p),
+    patch: (p, nome, iso) => patchVendaFeita(p, nome, iso),
+    feito: (p) => !!p.vendaFeitaEm,
+  },
+  producao: {
+    titulo: "Enviar para produção",
+    acao: "Enviar",
+    sub: "A fábrica passa a ver as peças marcadas.",
+    rotulo: "Produção",
+    elegivel: (p) => p.locked && p.vendaFeitaEm && !p.statusProducao,
+    patch: (p, nome, iso) => ({ statusProducao: "Em produção", producaoPor: nome, producaoEm: iso }),
+    feito: (p) => ["Em produção", "Disponível para instalar", "Instalado"].includes(p.statusProducao),
+  },
+  disponivel: {
+    titulo: "Liberar para instalação",
+    acao: "Liberar",
+    sub: "O instalador passa a ver as peças marcadas.",
+    rotulo: "Liberado",
+    elegivel: (p) => p.statusProducao === "Em produção",
+    patch: (p, nome, iso) => ({ statusProducao: "Disponível para instalar", disponivelPor: nome, disponivelEm: iso }),
+    feito: (p) => ["Disponível para instalar", "Instalado"].includes(p.statusProducao),
+  },
+  instalado: {
+    titulo: "Marcar como instalado",
+    acao: "Instalar",
+    sub: "Última etapa — as peças marcadas saem da fila de instalação.",
+    rotulo: "Instalado",
+    elegivel: (p) => p.statusProducao === "Disponível para instalar",
+    patch: (p, nome, iso) => ({ statusProducao: "Instalado", instaladoPor: nome, instaladoEm: iso }),
+    feito: (p) => p.statusProducao === "Instalado",
+  },
+};
+
+function AvancarPecasDialog({ etapa, pedido, onConfirm, onCancel }) {
+  const cfg = ETAPAS_PECA[etapa];
+  const grupos = pedido.ambientes
+    .map((a) => ({ ambiente: a, pecas: a.pecas.filter(cfg.elegivel) }))
+    .filter((g) => g.pecas.length > 0);
+  const todas = grupos.flatMap((g) => g.pecas);
+  const livres = todas.filter((p) => !(cfg.bloqueio && cfg.bloqueio(p)));
+  const [sel, setSel] = useState(() => new Set(livres.map((p) => p.id)));
+  const alterna = (id) =>
+    setSel((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  const todasMarcadas = livres.length > 0 && livres.every((p) => sel.has(p.id));
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, background: "var(--overlay)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onCancel}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 20, padding: 20, maxWidth: 440, width: "100%", maxHeight: "86vh", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-md)" }}
+      >
+        <div style={{ fontSize: 18, fontWeight: 600 }}>{cfg.titulo}</div>
+        <div style={{ fontSize: 13, color: "var(--ink-soft)", margin: "4px 0 12px" }}>{cfg.sub}</div>
+        {livres.length > 1 && (
+          <button
+            onClick={() => setSel(todasMarcadas ? new Set() : new Set(livres.map((p) => p.id)))}
+            style={{ alignSelf: "flex-start", background: "none", border: "none", color: "var(--accent)", fontSize: 12.5, fontWeight: 600, padding: "0 0 8px" }}
+          >
+            {todasMarcadas ? "Desmarcar todas" : "Marcar todas"}
+          </button>
+        )}
+        <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
+          {grupos.map(({ ambiente, pecas }) => (
+            <div key={ambiente.id}>
+              <div className="sec-label">{ambiente.nome}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {pecas.map((p) => {
+                  const motivo = cfg.bloqueio ? cfg.bloqueio(p) : null;
+                  const marcada = sel.has(p.id);
+                  return (
+                    <label
+                      key={p.id}
+                      style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--field)", border: `1px solid ${marcada ? "var(--line-strong)" : "var(--line)"}`, borderRadius: 12, padding: "10px 12px", opacity: motivo ? 0.6 : 1, cursor: motivo ? "not-allowed" : "pointer" }}
+                    >
+                      <input type="checkbox" checked={marcada} disabled={!!motivo} onChange={() => alterna(p.id)} style={{ width: 18, height: 18, accentColor: "var(--accent)" }} />
+                      <span style={{ fontFamily: "var(--mono)", fontWeight: 700, color: "var(--accent)", fontSize: 13 }}>{p.codigo}</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13.5 }}>
+                        {p.largura && p.altura ? `${fmtMedida(p.largura)} × ${fmtMedida(p.altura)} m` : p.tipo}
+                        {motivo && <span style={{ display: "block", fontSize: 11.5, color: "var(--amber)" }}>{motivo}</span>}
+                      </span>
+                      {p.valor > 0 && <span style={{ fontWeight: 600, fontSize: 13.5 }}>{fmtValor(p.valor)}</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <button onClick={onCancel} style={{ ...ghostBtnStyle, flex: 1, justifyContent: "center", padding: "11px 14px" }}>
+            Cancelar
+          </button>
+          <button
+            onClick={() => onConfirm([...sel])}
+            disabled={sel.size === 0}
+            style={{ ...primaryBtnStyle(sel.size === 0), flex: 1.4, marginTop: 0 }}
+          >
+            {cfg.titulo} ({sel.size})
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ProgressoPedido({ pedido, papel, nome, onChange }) {
+  const [etapa, setEtapa] = useState(null);
+  const pecas = pedido.ambientes.flatMap((a) => a.pecas);
+  if (pecas.length === 0 || papel === "Instalador") return null;
+  const pode = {
+    venda: canEnviarProducao(papel),
+    producao: canEnviarProducao(papel),
+    disponivel: canAvancarInstalar(papel),
+    instalado: canMarcarInstalado(papel),
+  };
+  const aplicar = (ids) => {
+    const cfg = ETAPAS_PECA[etapa];
+    const { iso } = nowParts();
+    onChange({
+      ...pedido,
+      ambientes: pedido.ambientes.map((a) => ({
+        ...a,
+        pecas: a.pecas.map((p) => (ids.includes(p.id) && cfg.elegivel(p) ? { ...p, ...cfg.patch(p, nome, iso) } : p)),
+      })),
+    });
+    setEtapa(null);
+  };
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div className="sec-label">Andamento das peças</div>
+      <div className="prog-grid">
+        {Object.entries(ETAPAS_PECA).map(([k, cfg]) => {
+          const feitas = pecas.filter(cfg.feito).length;
+          const pendentes = pecas.filter(cfg.elegivel).length;
+          const ativo = pode[k] && pendentes > 0;
+          const Tag = ativo ? "button" : "div";
+          return (
+            <Tag key={k} className={ativo ? "prog-tile ativo" : "prog-tile"} onClick={ativo ? () => setEtapa(k) : undefined}>
+              <small>{cfg.rotulo}</small>
+              <b>
+                {feitas}
+                <span>/{pecas.length}</span>
+              </b>
+              <em>{ativo ? `${cfg.acao} ${pendentes} ›` : feitas === pecas.length ? "Completo" : "—"}</em>
+            </Tag>
+          );
+        })}
+      </div>
+      {etapa && <AvancarPecasDialog etapa={etapa} pedido={pedido} onConfirm={aplicar} onCancel={() => setEtapa(null)} />}
+    </div>
+  );
+}
+
+function DescontoPedido({ pedido, papel, nome, onChange, embutido = false }) {
   const atual = descontoDoPedido(pedido);
+  const [aberto, setAberto] = useState(false);
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
   const gestor = isGestor(papel);
@@ -5752,19 +6187,31 @@ function DescontoPedido({ pedido, papel, nome, onChange }) {
   const negar = () =>
     grava({ ...atual, pct: efetivo, status: "negado", negadoPor: nome, log: registrar("Negado", atual.pct, efetivo) });
 
-  const caixa = { ...cardStyle, padding: "12px 14px", marginBottom: 14 };
+  const caixa = embutido
+    ? { borderTop: "1px solid var(--line)", marginTop: 12, paddingTop: 10 }
+    : { ...cardStyle, padding: "12px 14px", marginBottom: 14 };
+  const aberta = !embutido || aberto || pedido_ != null || atual?.status === "negado";
   return (
     <div style={caixa}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-        <div style={{ fontSize: 15, fontWeight: 700 }}>Desconto</div>
-        {efetivo > 0 && (
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--success)" }}>
-            {String(efetivo).replace(".", ",")}% · − {fmtValor(economia)}
-          </div>
-        )}
+      <div
+        onClick={embutido ? () => setAberto((v) => !v) : undefined}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: aberta ? 6 : 0, cursor: embutido ? "pointer" : "default" }}
+      >
+        <div className="sec-label" style={{ margin: 0 }}>Desconto</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {efetivo > 0 ? (
+            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--success)" }}>
+              {String(efetivo).replace(".", ",")}% · − {fmtValor(economia)}
+            </span>
+          ) : (
+            embutido && !aberta && <span style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>Nenhum</span>
+          )}
+          {embutido && (aberta ? <ChevronDown size={16} color="var(--ink-soft)" /> : <ChevronRight size={16} color="var(--ink-soft)" />)}
+        </div>
       </div>
-      <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.4, marginBottom: 8 }}>
-        Só nos produtos — a mão de obra não tem desconto. Até {DESCONTO_SEM_APROVACAO_PCT}% você mesma aplica; de {DESCONTO_SEM_APROVACAO_PCT}% até {DESCONTO_LIMITE_PCT}% o gestor precisa aprovar.
+      {aberta && (<>
+      <div style={{ fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.4, marginBottom: 10 }}>
+        Só nos produtos. Até {DESCONTO_SEM_APROVACAO_PCT}% você aplica; até {DESCONTO_LIMITE_PCT}% o gestor aprova.
       </div>
       {pedido_ != null && (
         <div style={{ border: "1px solid var(--amber)", color: "var(--amber)", borderRadius: 10, padding: "8px 10px", fontSize: 13.5, marginBottom: 8 }}>
@@ -5810,6 +6257,7 @@ function DescontoPedido({ pedido, papel, nome, onChange }) {
         </div>
       )}
       {erro && <div style={{ color: "var(--locked)", fontSize: 13, marginTop: 6 }}>{erro}</div>}
+      </>)}
     </div>
   );
 }
@@ -5839,6 +6287,13 @@ function PedidoDetail({
   const [showNovoAmbiente, setShowNovoAmbiente] = useState(false);
   const [agendaFormTipo, setAgendaFormTipo] = useState(null); // "Medida" | "Instalação" | null
   const [editandoInfo, setEditandoInfo] = useState(false);
+
+  // Ao trocar de orçamento os ambientes mudam de id: abre o primeiro.
+  useEffect(() => {
+    if (pedido.ambientes.length > 0 && !pedido.ambientes.some((a) => expanded.has(a.id))) {
+      setExpanded(new Set([pedido.ambientes[0].id]));
+    }
+  }, [pedido.ambientes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = (id) => {
     setExpanded((prev) => {
@@ -5937,100 +6392,6 @@ function PedidoDetail({
   // (que inclui peças ainda em orçamento, sem venda confirmada).
   const valorFechado = todasPecas.filter((p) => !!p.vendaFeitaEm).reduce((soma, p) => soma + (p.valor || 0), 0);
 
-  const [confirmandoBulk, setConfirmandoBulk] = useState(null); // "venda" | "producao" | "disponivel" | "instalado"
-
-  const marcarVendasFeitas = () => {
-    const { iso } = nowParts();
-    const updated = {
-      ...pedido,
-      ambientes: pedido.ambientes.map((a) => ({
-        ...a,
-        pecas: a.pecas.map((p) => (p.locked && !p.vendaFeitaEm && !motivoBloqueioVenda(p) ? { ...p, ...patchVendaFeita(p, nome, iso) } : p)),
-      })),
-    };
-    onChange(updated);
-    setConfirmandoBulk(null);
-  };
-
-  const enviarConcluidosParaProducao = () => {
-    const { iso } = nowParts();
-    const updated = {
-      ...pedido,
-      ambientes: pedido.ambientes.map((a) => ({
-        ...a,
-        pecas: a.pecas.map((p) =>
-          p.locked && p.vendaFeitaEm && !p.statusProducao
-            ? { ...p, statusProducao: "Em produção", producaoPor: nome, producaoEm: iso }
-            : p
-        ),
-      })),
-    };
-    onChange(updated);
-    setConfirmandoBulk(null);
-  };
-
-  const marcarObraDisponivel = () => {
-    const { iso } = nowParts();
-    const updated = {
-      ...pedido,
-      ambientes: pedido.ambientes.map((a) => ({
-        ...a,
-        pecas: a.pecas.map((p) =>
-          p.statusProducao === "Em produção"
-            ? { ...p, statusProducao: "Disponível para instalar", disponivelPor: nome, disponivelEm: iso }
-            : p
-        ),
-      })),
-    };
-    onChange(updated);
-    setConfirmandoBulk(null);
-  };
-
-  const marcarInstaladas = () => {
-    const { iso } = nowParts();
-    const updated = {
-      ...pedido,
-      ambientes: pedido.ambientes.map((a) => ({
-        ...a,
-        pecas: a.pecas.map((p) =>
-          p.statusProducao === "Disponível para instalar"
-            ? { ...p, statusProducao: "Instalado", instaladoPor: nome, instaladoEm: iso }
-            : p
-        ),
-      })),
-    };
-    onChange(updated);
-    setConfirmandoBulk(null);
-  };
-
-  const dialogosBulk = {
-    venda: {
-      title: `Confirmar venda de ${pendentesVenda} peça(s)?`,
-      message: "Marca como fechadas com o cliente todas as peças com medição salva que ainda não tinham venda confirmada.",
-      confirmLabel: "Marcar venda feita",
-      onConfirm: marcarVendasFeitas,
-    },
-    producao: {
-      title: `Enviar ${pendentesProducao} peça(s) para produção?`,
-      message: "A fábrica passa a enxergar essas peças a partir de agora.",
-      confirmLabel: "Enviar para produção",
-      onConfirm: enviarConcluidosParaProducao,
-    },
-    disponivel: {
-      title: `Marcar ${emProducaoCount} peça(s) disponível para instalar?`,
-      message: "O instalador passa a ver essas peças na fila dele.",
-      confirmLabel: "Marcar disponível",
-      onConfirm: marcarObraDisponivel,
-    },
-    instalado: {
-      title: `Marcar ${disponivelCount} peça(s) como instalada(s)?`,
-      message: "Essa é a última etapa — depois disso elas saem da fila de instalação.",
-      confirmLabel: "Marcar instalado",
-      onConfirm: marcarInstaladas,
-    },
-  };
-  const dialogoBulk = confirmandoBulk && dialogosBulk[confirmandoBulk];
-
   const showContact = canVerComercial(papel);
 
   // Instalador só enxerga peças já liberadas para instalação/entrega.
@@ -6046,16 +6407,17 @@ function PedidoDetail({
   return (
     <div className="split" style={{ paddingTop: 18 }}>
      <div style={{ minWidth: 0 }}>
-      <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-soft)" }}>{pedidoLabel(pedido.numero)}</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, marginBottom: 8 }}>
-        <h1 style={{ fontSize: 28, lineHeight: 1.05, flex: 1, minWidth: 0 }}>{pedido.cliente}</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span className="num-chip">{pedidoLabel(pedido.numero)}</span>
+        <StatusPedidoBadge status={statusAtual} />
+        <span style={{ flex: 1 }} />
         {canEditClienteInfo(papel) && !editandoInfo && (
           <button
             onClick={() => setEditandoInfo(true)}
             title="Editar informações do pedido"
-            style={{ background: "none", border: "none", padding: 4, color: "var(--ink-soft)", flexShrink: 0 }}
+            style={{ background: "var(--field)", border: "1px solid var(--line)", borderRadius: 10, padding: 7, color: "var(--ink-soft)", display: "flex", flexShrink: 0 }}
           >
-            <Pencil size={16} />
+            <Pencil size={15} />
           </button>
         )}
         {canExcluirPedido(papel) && !editandoInfo && (papel === "Gestor Master" || !pedido.ambientes.some((a) => a.pecas.some((p) => p.vendaFeitaEm))) && (
@@ -6063,12 +6425,13 @@ function PedidoDetail({
             onClick={() => setExcluindoPedido(true)}
             title="Excluir pedido"
             aria-label="Excluir pedido"
-            style={{ background: "none", border: "none", padding: 4, color: "var(--locked)", flexShrink: 0 }}
+            style={{ background: "var(--field)", border: "1px solid var(--line)", borderRadius: 10, padding: 7, color: "var(--locked)", display: "flex", flexShrink: 0 }}
           >
-            <Trash2 size={16} />
+            <Trash2 size={15} />
           </button>
         )}
       </div>
+      <h1 style={{ fontSize: 30, lineHeight: 1.1, margin: "12px 0 16px" }}>{pedido.cliente}</h1>
 
       {excluindoPedido && (
         <ConfirmDialog
@@ -6100,37 +6463,50 @@ function PedidoDetail({
           onCancel={() => setEditandoInfo(false)}
         />
       ) : (
-        (showContact || (canVerValores(papel) && temValorLancado)) && (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
-            <div style={{ lineHeight: 1.6 }}>
-              {showContact && pedido.telefone && (
-                <div style={{ fontSize: 15.5, fontWeight: 500, color: "var(--ink)", marginBottom: 2 }}>
-                  {formatTelefone(pedido.telefone)}
+        <>
+          {canVerValores(papel) && temValorLancado && valorFechado > 0 && (
+            <div className="stat-grid">
+              <div className="stat">
+                <small>Orçamento atual</small>
+                <b>{fmtValor(valorTotal)}</b>
+              </div>
+              {valorFechado > 0 && (
+                <div className="stat destaque">
+                  <small>Valor fechado</small>
+                  <b>{fmtValor(valorFechado)}</b>
                 </div>
-              )}
-              {showContact && pedido.endereco && <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>{pedido.endereco}</div>}
-              {showContact && pedido.vendedor && (
-                <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>Vendedor: {pedido.vendedor}</div>
               )}
             </div>
-            {canVerValores(papel) && temValorLancado && (
-              <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.6, textAlign: "right", flexShrink: 0 }}>
-                <div>
-                  Valor total: <strong style={{ color: "var(--ink)" }}>{fmtValor(valorTotal)}</strong>
+          )}
+          {showContact && (pedido.telefone || pedido.endereco || pedido.vendedor) && (
+            <div style={{ ...cardStyle, padding: "6px 14px", marginBottom: 16, borderRadius: 14 }}>
+              {pedido.telefone && (
+                <div className="info-linha compacta" title="Telefone">
+                  <Phone size={14} />
+                  <span className="v">{formatTelefone(pedido.telefone)}</span>
                 </div>
-                {valorFechado > 0 && (
-                  <div>
-                    Valor fechado: <strong style={{ color: "var(--ink)" }}>{fmtValor(valorFechado)}</strong>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )
+              )}
+              {pedido.endereco && (
+                <div className="info-linha compacta" title="Endereço da obra">
+                  <MapPin size={14} />
+                  <span className="v">{pedido.endereco}</span>
+                </div>
+              )}
+              {pedido.vendedor && (
+                <div className="info-linha compacta" title="Vendedor(a)">
+                  <UserIcon size={14} />
+                  <span className="v">{pedido.vendedor}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
+      <OrcamentosCard pedido={pedido} papel={papel} nome={nome} onChange={onChange} />
+      <ProgressoPedido pedido={pedido} papel={papel} nome={nome} onChange={onChange} />
+
       <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <StatusPedidoBadge status={statusAtual} />
         {canVerValores(papel) && todasPecas.some((p) => p.valor > 0) && (
           <button
             onClick={() => {
@@ -6141,62 +6517,28 @@ function PedidoDetail({
               janela.focus();
               janela.print();
             }}
-            style={smallActionStyle}
+            className="acao-btn"
           >
-            <Printer size={13} /> Imprimir orçamento
+            <Printer size={15} /> Imprimir orçamento
           </button>
         )}
         {canEditStructure(papel) &&
           (statusAtual === "Orçamento Perdido" ? (
-            <button onClick={reativarPedido} style={smallActionStyle}>
+            <button onClick={reativarPedido} className="acao-btn">
               Reativar pedido
             </button>
           ) : (
-            <button onClick={marcarOrcamentoPerdido} style={{ ...smallActionStyle, color: "var(--locked)" }}>
+            <button onClick={marcarOrcamentoPerdido} className="acao-btn perigo">
               Marcar orçamento perdido
             </button>
           ))}
       </div>
 
-      <DescontoPedido pedido={pedido} papel={papel} nome={nome} onChange={onChange} />
-
-      {dialogoBulk && (
-        <ConfirmDialog
-          title={dialogoBulk.title}
-          message={dialogoBulk.message}
-          confirmLabel={dialogoBulk.confirmLabel}
-          onConfirm={dialogoBulk.onConfirm}
-          onCancel={() => setConfirmandoBulk(null)}
-        />
-      )}
-      {canEnviarProducao(papel) && pendentesVenda > 0 && (
-        <button
-          onClick={() => setConfirmandoBulk("venda")}
-          style={{ ...ghostBtnStyle, width: "100%", justifyContent: "center", marginBottom: 8, color: "var(--rose)" }}
-        >
-          <Check size={14} /> Marcar {pendentesVenda} peça(s) com venda feita
-        </button>
-      )}
-      {canEnviarProducao(papel) && pendentesProducao > 0 && (
-        <button onClick={() => setConfirmandoBulk("producao")} style={{ ...ghostBtnStyle, width: "100%", justifyContent: "center", marginBottom: 8 }}>
-          <Factory size={14} /> Enviar {pendentesProducao} peça(s) vendida(s) para produção
-        </button>
-      )}
-      {canAvancarInstalar(papel) && emProducaoCount > 0 && (
-        <button onClick={() => setConfirmandoBulk("disponivel")} style={{ ...ghostBtnStyle, width: "100%", justifyContent: "center", marginBottom: 8, color: "var(--success)" }}>
-          <Truck size={14} /> Marcar {emProducaoCount} peça(s) disponível para instalar
-        </button>
-      )}
-      {canMarcarInstalado(papel) && disponivelCount > 0 && (
-        <button onClick={() => setConfirmandoBulk("instalado")} style={{ ...ghostBtnStyle, width: "100%", justifyContent: "center", marginBottom: 8, color: "var(--teal)" }}>
-          <CheckCheck size={14} /> Marcar {disponivelCount} peça(s) como instalada(s)
-        </button>
-      )}
 
       {canVerCalendario(papel) && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-soft)" }}>Agenda</div>
+            <div className="sec-label" style={{ margin: 0 }}>Agenda</div>
             <button onClick={onAbrirCalendario} style={{ background: "none", border: "none", padding: 0, fontSize: 11.5, color: "var(--accent)", fontWeight: 500 }}>
               Ver calendário completo
             </button>
@@ -6492,7 +6834,7 @@ function AmbienteAccordion({ ambiente, open, onToggle, papel, nome, onAddPeca, o
   const salvas = ambiente.pecas.filter((p) => p.locked).length;
   const totalAmb = ambiente.pecas.reduce((soma, p) => soma + (p.valor || 0), 0);
   return (
-    <div style={{ border: "1px solid var(--line-strong)", borderRadius: 12, background: "var(--surface-hi)", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
+    <div style={{ border: "1px solid var(--line)", borderRadius: 18, background: "var(--card-bg)", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
       <button
         onClick={onToggle}
         style={{
@@ -6500,18 +6842,17 @@ function AmbienteAccordion({ ambiente, open, onToggle, papel, nome, onAddPeca, o
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "14px 14px",
+          padding: "16px 16px",
           background: "none",
           border: "none",
-          borderLeft: "4px solid var(--accent)",
         }}
       >
         <span style={{ textAlign: "left", minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 18, fontWeight: 700 }}>{ambiente.nome}</span>
-          <span style={{ display: "block", fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
-            {count} {count === 1 ? "peça" : "peças"}
-            {count > 0 && ` · ${salvas} ${salvas === 1 ? "medida salva" : "medidas salvas"}`}
-            {canVerValores(papel) && totalAmb > 0 && ` · ${fmtValor(totalAmb)}`}
+          <span style={{ display: "block", fontSize: 18, fontWeight: 600 }}>{ambiente.nome}</span>
+          <span style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+            <span className="num-chip" style={{ fontFamily: "var(--sans)", fontSize: 11.5 }}>{count} {count === 1 ? "peça" : "peças"}</span>
+            {count > 0 && <span className="num-chip" style={{ fontFamily: "var(--sans)", fontSize: 11.5 }}>{salvas}/{count} medidas</span>}
+            {canVerValores(papel) && totalAmb > 0 && <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--accent)", alignSelf: "center" }}>{fmtValor(totalAmb)}</span>}
           </span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -6520,13 +6861,13 @@ function AmbienteAccordion({ ambiente, open, onToggle, papel, nome, onAddPeca, o
       </button>
 
       {open && (
-        <div style={{ borderTop: "1px solid var(--line)", padding: "10px 12px 12px" }}>
+        <div style={{ borderTop: "1px solid var(--line)", padding: "12px 14px 14px" }}>
           {ambiente.pecas.length === 0 ? (
             <div style={{ fontSize: 12.5, color: "var(--ink-soft)", padding: "6px 2px 10px" }}>
               Nenhuma peça neste ambiente ainda.
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginLeft: 6, paddingLeft: 12, borderLeft: "2px solid var(--line-strong)" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {ambiente.pecas.map((p) => (
                 <PecaRow
                   key={p.id}
@@ -6701,10 +7042,9 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
       : "Sem medida";
   const cardBase = {
     border: "1px solid var(--line)",
-    borderLeft: `4px solid ${corSituacao}`,
-    borderRadius: 10,
-    padding: "10px 12px",
-    background: "var(--surface)",
+    borderRadius: 14,
+    padding: "12px 14px",
+    background: "var(--field)",
   };
 
   const acoesOrc = canEditarOrcamento(papel) ? <OrcCopiarColar peca={peca} onUpdatePeca={onUpdate} /> : null;
@@ -6723,9 +7063,9 @@ function PecaRow({ peca, papel, nome, onUpdate, onDelete, onOpen }) {
         <span style={{ ...statusBadgeStyle(corSituacao), fontSize: 11 }}>{situacao}</span>
         <span style={{ flex: 1 }} />
         <ChevronRight size={16} color="var(--ink-soft)" />
-        <span style={{ flexBasis: "100%", display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, fontSize: 17 }}>
-          <span style={{ fontWeight: 700 }}>{medidaTxt}</span>
-          {canVerValores(papel) && peca.valor > 0 && <span style={{ fontFamily: "var(--mono)", fontSize: 15 }}>{fmtValor(peca.valor)}</span>}
+        <span style={{ flexBasis: "100%", display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, fontSize: 17, marginTop: 4 }}>
+          <span style={{ fontWeight: 600 }}>{medidaTxt}</span>
+          {canVerValores(papel) && peca.valor > 0 && <span style={{ fontWeight: 700, fontSize: 16, color: "var(--accent)" }}>{fmtValor(peca.valor)}</span>}
         </span>
       </button>
       {acoesOrc}
@@ -7703,12 +8043,12 @@ function gerarHtmlOrcamentoCliente(pedido) {
 <style>
   * { box-sizing: border-box; }
   body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #111; padding: 32px; font-size: 17px; max-width: 820px; margin: 0 auto; }
-  .topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #2F6FBF; padding-bottom: 12px; margin-bottom: 18px; }
+  .topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #0E8F7A; padding-bottom: 12px; margin-bottom: 18px; }
   .loja { font-size: 28px; font-weight: 800; letter-spacing: .3px; }
   .loja small { display: block; font-size: 14px; font-weight: 500; color: #666; letter-spacing: 1.5px; text-transform: uppercase; }
   .num { text-align: right; font-size: 15px; color: #444; }
   .num b { display: block; font-size: 22px; color: #111; }
-  h2 { font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; color: #2F6FBF; margin: 22px 0 6px; }
+  h2 { font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; color: #0E8F7A; margin: 22px 0 6px; }
   .row { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px solid #e4e4e4; }
   .row .l { color: #666; }
   .row .v { font-weight: 600; text-align: right; }
@@ -7723,7 +8063,7 @@ function gerarHtmlOrcamentoCliente(pedido) {
   .tot { display: flex; justify-content: space-between; padding: 6px 0; }
   .tot.desc { color: #1d7a46; }
   .tot.final { border-top: 2px solid #111; margin-top: 6px; padding-top: 10px; font-size: 24px; font-weight: 800; }
-  .validade { margin-top: 26px; border: 2px dashed #2F6FBF; border-radius: 10px; padding: 12px 16px; font-size: 17px; }
+  .validade { margin-top: 26px; border: 2px dashed #0E8F7A; border-radius: 10px; padding: 12px 16px; font-size: 17px; }
   .rodape { margin-top: 34px; display: flex; gap: 40px; font-size: 14px; color: #666; }
   .rodape div { flex: 1; border-top: 1px solid #999; padding-top: 6px; text-align: center; }
   @media print { body { padding: 10px; } }
@@ -7732,7 +8072,7 @@ function gerarHtmlOrcamentoCliente(pedido) {
 <body>
   <div class="topo">
     <div class="loja">Cortinas Miriam Rios<small>Orçamento</small></div>
-    <div class="num"><b>${escapeHtml(pedidoLabel(pedido.numero))}</b>Emitido em ${dataBR(hoje)}</div>
+    <div class="num"><b>${escapeHtml(pedidoLabel(pedido.numero))}</b>${pedido.orcamentos?.atual ? escapeHtml(pedido.orcamentos.atual) + " · " : ""}Emitido em ${dataBR(hoje)}</div>
   </div>
   <h2>Cliente</h2>
   ${info("Nome", pedido.cliente)}
@@ -9899,8 +10239,8 @@ function primaryBtnStyle(disabled) {
   return {
     width: "100%",
     marginTop: 16,
-    background: disabled ? "#27324A" : "linear-gradient(135deg, #4F9CEB 0%, #2A63B0 100%)",
-    color: disabled ? "var(--ink-soft)" : "#FFFFFF",
+    background: disabled ? "#25262D" : "var(--grad)",
+    color: disabled ? "var(--ink-soft)" : "var(--accent-ink)",
     border: "none",
     borderRadius: 10,
     padding: "11px 14px",
@@ -9911,7 +10251,7 @@ function primaryBtnStyle(disabled) {
     justifyContent: "center",
     gap: 6,
     cursor: disabled ? "not-allowed" : "pointer",
-    boxShadow: disabled ? "none" : "var(--shadow-sm), 0 0 22px rgba(125,185,245,0.28)",
+    boxShadow: disabled ? "none" : "var(--shadow-sm), 0 0 22px rgba(52,240,176,0.28)",
   };
 }
 function inputStyle() {
