@@ -8294,7 +8294,8 @@ function OrcCopiarColar({ peca, onUpdatePeca }) {
   // Só cola em peça ainda sem produto, ou do mesmo produto/modelo.
   const compativel =
     copiado &&
-    copiado.codigo !== peca.codigo &&
+    // Mesmo código só é a mesma peça se o orçamento também for idêntico (outro orçamento do pedido pode ter a mesma J03).
+    !(copiado.codigo === peca.codigo && JSON.stringify(copiado.orcamento) === JSON.stringify(peca[copiado.campo] || null)) &&
     (!peca.produto || (copiado.produto === peca.produto && (!peca.modelo || copiado.modelo === peca.modelo)));
   if (!campoOrigem && !compativel) return null;
   const copiar = () => {
