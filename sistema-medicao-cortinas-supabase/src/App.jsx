@@ -90,7 +90,7 @@ import {
    TOKENS
    ============================================================ */
 const FONT_IMPORT =
-  "@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');";
+  "@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,600;1,700&family=Lustria&family=IBM+Plex+Mono:wght@400;500;600&display=swap');";
 
 // Modelo da Cortina: 6 estruturas de mecanismo. "Trilho suíço" e "Tubo
 // Vaza" já têm regra de orçamento completa (mesmo motor de cálculo pros
@@ -1856,8 +1856,8 @@ function canVerClientes(papel) {
    Identidade visual única e fixa do sistema — veja --accent/--accent-soft/
    --accent-ink no CSS. As cores de status (venda feita, instalado etc.)
    são independentes e fixas: o significado das etiquetas nunca muda. */
-const COR_MARCA = "#D8955F";
-const COR_GLOW = "#5CC8FF";
+const COR_MARCA = "#E0B681"; // dourado da logo
+const COR_GLOW = "#F3DBA6";
 function hexParaRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
   if (!m) return null;
@@ -2547,8 +2547,8 @@ function Shell({
   const [railOpen, setRailOpen] = useState(false);
   const [tema, setTema] = useTema();
   const corAccent = COR_MARCA;
-  const corAccentSoft = "rgba(216,149,95,0.16)";
-  const corAccentInk = "#2B140A";
+  const corAccentSoft = "rgba(224,182,129,0.16)";
+  const corAccentInk = "#1A1006";
 
   return (
     <div className="app-shell" style={{ fontFamily: "var(--sans)", color: "var(--ink)" }}>
@@ -2556,16 +2556,16 @@ function Shell({
         ${FONT_IMPORT}
         :root {
           color-scheme: dark;
-          --bg: #070B14;
-          --surface: #101A2C;
-          --field: #182842;
-          --surface-hi: #1D2F50;
-          --ink: #F1F5FC;
-          --ink-soft: #B0BDD4;
-          --line: rgba(150,190,255,0.26);
-          --line-strong: rgba(165,205,255,0.55);
-          --info: #6FB6FF;
-          --display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+          --bg: #0C0B0A;
+          --surface: #151311;
+          --field: #1D1A16;
+          --surface-hi: #272219;
+          --ink: #F7EFDF;
+          --ink-soft: #C2B6A0;
+          --line: rgba(224,182,129,0.24);
+          --line-strong: rgba(224,182,129,0.52);
+          --info: #9CC3EE;
+          --display: 'Montserrat', system-ui, sans-serif;
           --accent: ${corAccent};
           --accent-ink: ${corAccentInk};
           --accent-soft: ${corAccentSoft};
@@ -2574,8 +2574,8 @@ function Shell({
           --locked-soft: rgba(238,138,120,0.16);
           --success: #7CC79A;
           --success-soft: rgba(124,199,154,0.15);
-          --amber: #E8BC55;
-          --amber-soft: rgba(232,188,85,0.16);
+          --amber: #EBC25E;
+          --amber-soft: rgba(235,194,94,0.16);
           --orange: #F59A55;
           --orange-soft: rgba(245,154,85,0.16);
           --teal: #6CC4CC;
@@ -2583,82 +2583,92 @@ function Shell({
           --rose: #EA8FA6;
           --rose-soft: rgba(234,143,166,0.16);
           --mono: 'IBM Plex Mono', ui-monospace, monospace;
-          --sans: 'Barlow', system-ui, sans-serif;
-          --shadow-sm: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(170,205,255,0.07);
-          --shadow-md: 0 14px 36px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4);
-          --card-bg: linear-gradient(160deg, rgba(26,40,66,0.82) 0%, rgba(14,22,38,0.88) 100%);
-          --header-bg: rgba(9,14,26,0.72);
-          --tabs-bg: rgba(9,14,26,0.6);
-          --overlay: rgba(3,6,14,0.72);
-          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(70,160,255,0.22), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(216,149,95,0.13), transparent 65%), linear-gradient(160deg, #15233C 0%, #0D1627 100%);
-          --track: rgba(160,200,255,0.10);
-          --panel-bg: rgba(5,10,20,0.45);
-          --placeholder: #8FA2C2;
-          --row-hover: rgba(120,170,255,0.10);
-          --hero-border: rgba(120,190,255,0.30);
+          --sans: 'Montserrat', system-ui, sans-serif;
+          --serif: 'Lustria', Georgia, serif;
+          --shadow-sm: 0 1px 2px rgba(0,0,0,0.45), inset 0 1px 0 rgba(243,219,166,0.07);
+          --shadow-md: 0 14px 36px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.45);
+          --card-bg: linear-gradient(160deg, rgba(36,31,25,0.86) 0%, rgba(20,17,14,0.92) 100%);
+          --header-bg: rgba(12,11,10,0.80);
+          --tabs-bg: rgba(12,11,10,0.68);
+          --overlay: rgba(4,3,2,0.74);
+          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(224,182,129,0.20), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(185,138,82,0.14), transparent 65%), linear-gradient(160deg, #221C14 0%, #0F0D0A 100%);
+          --track: rgba(224,182,129,0.12);
+          --panel-bg: rgba(0,0,0,0.38);
+          --placeholder: #9C917D;
+          --row-hover: rgba(224,182,129,0.09);
+          --hero-border: rgba(224,182,129,0.34);
         }
         /* TEMA CLARO — ativado pelo botão sol/lua no cabeçalho. */
         :root[data-tema="claro"] {
           color-scheme: light;
-          --bg: #F2F5FA;
+          --bg: #F6F1E7;
           --surface: #FFFFFF;
-          --field: #FFFFFF;
-          --surface-hi: #E7EDF6;
-          --ink: #0F1A2E;
-          --ink-soft: #46587A;
-          --line: rgba(30,55,100,0.22);
-          --line-strong: rgba(30,55,100,0.50);
-          --info: #1F6FD1;
+          --field: #FFFDF8;
+          --surface-hi: #EFE7D8;
+          --ink: #1B1610;
+          --ink-soft: #6A5D49;
+          --line: rgba(120,90,40,0.24);
+          --line-strong: rgba(120,90,40,0.52);
+          --info: #2B6CB0;
+          --accent: #A9763A;
+          --accent-ink: #FFF8EA;
+          --accent-soft: rgba(169,118,58,0.14);
           --locked: #C0402B;
           --locked-soft: rgba(192,64,43,0.12);
           --success: #1C8449;
           --success-soft: rgba(28,132,73,0.12);
-          --amber: #94650A;
-          --amber-soft: rgba(148,101,10,0.13);
+          --amber: #8A5E08;
+          --amber-soft: rgba(138,94,8,0.13);
           --orange: #C0560A;
           --orange-soft: rgba(192,86,10,0.12);
           --teal: #0D7480;
           --teal-soft: rgba(13,116,128,0.12);
           --rose: #B2345A;
           --rose-soft: rgba(178,52,90,0.12);
-          --glow: #1F7FCC;
-          --shadow-sm: 0 1px 2px rgba(20,40,80,0.10), 0 0 0 1px rgba(20,40,80,0.02);
-          --shadow-md: 0 14px 36px rgba(20,40,80,0.18), 0 2px 8px rgba(20,40,80,0.10);
-          --card-bg: linear-gradient(160deg, #FFFFFF 0%, #F6F9FE 100%);
-          --header-bg: rgba(255,255,255,0.86);
-          --tabs-bg: rgba(255,255,255,0.8);
-          --overlay: rgba(15,26,46,0.45);
-          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(70,160,255,0.18), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(216,149,95,0.16), transparent 65%), linear-gradient(160deg, #FFFFFF 0%, #EAF1FB 100%);
-          --track: rgba(30,55,100,0.12);
-          --panel-bg: rgba(30,55,100,0.05);
-          --placeholder: #6A7B99;
-          --row-hover: rgba(31,111,209,0.08);
-          --hero-border: rgba(30,80,160,0.28);
+          --glow: #C99A5B;
+          --shadow-sm: 0 1px 2px rgba(60,40,10,0.10), 0 0 0 1px rgba(60,40,10,0.02);
+          --shadow-md: 0 14px 36px rgba(60,40,10,0.18), 0 2px 8px rgba(60,40,10,0.10);
+          --card-bg: linear-gradient(160deg, #FFFFFF 0%, #FBF7EF 100%);
+          --header-bg: rgba(255,252,246,0.88);
+          --tabs-bg: rgba(255,252,246,0.82);
+          --overlay: rgba(27,22,16,0.45);
+          --hero-bg: radial-gradient(560px 280px at 100% 0%, rgba(224,182,129,0.30), transparent 65%), radial-gradient(420px 240px at 0% 100%, rgba(185,138,82,0.16), transparent 65%), linear-gradient(160deg, #FFFFFF 0%, #F4ECDD 100%);
+          --track: rgba(120,90,40,0.13);
+          --panel-bg: rgba(120,90,40,0.06);
+          --placeholder: #8B7D66;
+          --row-hover: rgba(169,118,58,0.09);
+          --hero-border: rgba(169,118,58,0.32);
         }
         :root[data-tema="claro"] body {
           background-image:
-            radial-gradient(900px 560px at 90% -10%, rgba(70,150,240,0.16), transparent 62%),
-            radial-gradient(780px 520px at -10% 110%, rgba(216,149,95,0.16), transparent 60%),
-            linear-gradient(180deg, #F7F9FD 0%, #EAEFF7 100%);
+            radial-gradient(900px 560px at 90% -10%, rgba(224,182,129,0.26), transparent 62%),
+            radial-gradient(780px 520px at -10% 110%, rgba(185,138,82,0.18), transparent 60%),
+            linear-gradient(180deg, #FAF6EE 0%, #EFE7D8 100%);
           background-size: auto, auto, auto;
         }
-        :root[data-tema="claro"] ::selection { background: rgba(31,111,209,0.25); }
+        :root[data-tema="claro"] ::selection { background: rgba(169,118,58,0.28); }
+        .marca-nome {
+          background: linear-gradient(180deg, #F8EBC0 0%, #E0B681 52%, #B98A52 100%);
+          -webkit-background-clip: text; background-clip: text; color: transparent;
+          padding-right: 3px;
+        }
+        :root[data-tema="claro"] .marca-nome { background-image: linear-gradient(180deg, #C99A5B 0%, #A9763A 55%, #7A5224 100%); }
+        .marca-sub { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 9.5px; font-weight: 500; letter-spacing: 0.5em; color: var(--accent); margin-top: 3px; }
+        .marca-linha { flex: 1; height: 1px; background: var(--accent); opacity: 0.7; min-width: 8px; }
         * { box-sizing: border-box; }
         html, body, #root { height: 100%; margin: 0; }
         body {
           overflow: hidden;
           background-color: var(--bg);
           background-image:
-            linear-gradient(rgba(130,175,255,0.045) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(130,175,255,0.045) 1px, transparent 1px),
-            radial-gradient(900px 560px at 90% -10%, rgba(40,120,230,0.32), transparent 62%),
-            radial-gradient(780px 520px at -10% 110%, rgba(110,70,220,0.24), transparent 60%),
-            linear-gradient(180deg, #0B1222 0%, #060A12 100%);
-          background-size: 44px 44px, 44px 44px, auto, auto, auto;
+            radial-gradient(900px 560px at 90% -10%, rgba(224,182,129,0.13), transparent 62%),
+            radial-gradient(780px 520px at -10% 110%, rgba(185,138,82,0.11), transparent 60%),
+            linear-gradient(180deg, #100E0C 0%, #070605 100%);
+          background-size: auto, auto, auto;
           background-attachment: fixed;
         }
-        ::selection { background: rgba(92,200,255,0.35); }
-        h1 { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+        ::selection { background: rgba(224,182,129,0.35); }
+        h1 { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
         button { font-family: inherit; cursor: pointer; transition: filter 0.12s ease, box-shadow 0.12s ease, transform 0.05s ease, background-color 0.12s ease; }
         button:not(:disabled):hover { filter: brightness(0.96); }
         button:not(:disabled):active { transform: translateY(1px); }
@@ -2743,7 +2753,7 @@ function Shell({
         .rail-item.active {
           background: var(--accent-soft) !important;
           color: var(--accent) !important;
-          box-shadow: inset 2px 0 0 var(--accent), 0 0 18px rgba(216,149,95,0.16);
+          box-shadow: inset 2px 0 0 var(--accent), 0 0 18px rgba(224,182,129,0.16);
         }
         /* Modo largo (Funil): larga o teto de 640px e deixa só uns 24px de
            margem de cada lado em telas largas — em telas estreitas, max()
@@ -2763,7 +2773,7 @@ function Shell({
         input:focus, select:focus, textarea:focus {
           outline: none;
           border-color: var(--glow) !important;
-          box-shadow: 0 0 0 3px rgba(92,200,255,0.2);
+          box-shadow: 0 0 0 3px rgba(243,219,166,0.2);
         }
         .mobile-tabs { display: none; }
         .mobile-tab {
@@ -2772,9 +2782,9 @@ function Shell({
           color: var(--ink-soft); font-size: 14px; font-weight: 500; white-space: nowrap;
         }
         .mobile-tab.active {
-          background: linear-gradient(90deg, var(--accent-soft), rgba(92,200,255,0.06));
+          background: linear-gradient(90deg, var(--accent-soft), rgba(243,219,166,0.06));
           color: var(--ink); font-weight: 600;
-          box-shadow: inset 3px 0 0 var(--accent), 0 0 18px rgba(216,149,95,0.14);
+          box-shadow: inset 3px 0 0 var(--accent), 0 0 18px rgba(224,182,129,0.14);
         }
         .mobile-tab.active svg { color: var(--accent); }
         @media (max-width: 640px) {
@@ -2786,10 +2796,10 @@ function Shell({
             display: flex; flex-shrink: 0; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
             padding: 8px 12px 6px; background: var(--tabs-bg);
             border-bottom: 1px solid var(--line);
-            scrollbar-width: thin; scrollbar-color: rgba(143,157,182,0.45) transparent;
+            scrollbar-width: thin; scrollbar-color: rgba(194,182,160,0.45) transparent;
           }
           .mobile-tabs::-webkit-scrollbar { height: 4px; }
-          .mobile-tabs::-webkit-scrollbar-thumb { background: rgba(143,157,182,0.45); border-radius: 4px; }
+          .mobile-tabs::-webkit-scrollbar-thumb { background: rgba(194,182,160,0.45); border-radius: 4px; }
           .nav-rail.collapsed { width: 0; border-right: none; }
           .rail-hamburger-desktop { display: none !important; }
           .header-hamburger-mobile { display: flex !important; }
@@ -2878,52 +2888,18 @@ function Shell({
               }}
             >
               {showHome && <ArrowLeft size={18} color="var(--ink-soft)" style={{ flexShrink: 0 }} />}
-              {!showHome && (
-                <div
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 8,
-                    background: "linear-gradient(135deg, #E8A870 0%, #B96C3F 100%)",
-                    color: "#2B140A",
-                    boxShadow: "inset 0 1px 0 rgba(255,236,214,0.5)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 14,
-                    fontWeight: 700,
-                    flexShrink: 0,
-                  }}
-                >
-                  M
-                </div>
-              )}
+              {!showHome && <img src="/logo-flor.png" alt="" style={{ height: 38, width: "auto", flexShrink: 0 }} />}
               <div style={{ minWidth: 0 }}>
                 <div
-                  style={{
-                    fontFamily: "var(--display)",
-                    fontSize: 19,
-                    fontWeight: 700,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    lineHeight: 1.1,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
+                  className="marca-nome"
+                  style={{ fontFamily: "var(--display)", fontSize: 22, fontWeight: 700, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.05, whiteSpace: "nowrap" }}
                 >
-                  Cortinas Miriam Rios
+                  Miriam Rios
                 </div>
-                <div
-                  style={{
-                    fontSize: 11.5,
-                    color: "var(--ink-soft)",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  Sistema de Gerenciamento de Clientes
+                <div className="marca-sub">
+                  <span className="marca-linha" />
+                  CORTINAS
+                  <span className="marca-linha" />
                 </div>
               </div>
             </div>
@@ -3228,8 +3204,11 @@ function LoginScreen({ onLogin }) {
   };
 
   return (
-    <div style={{ ...cardStyle, maxWidth: 420, margin: "8vh auto 0", padding: "32px 28px", boxShadow: "var(--shadow-md), 0 0 48px rgba(70,160,255,0.08)" }}>
-      <h1 style={{ fontSize: 28, lineHeight: 1.05, marginBottom: 6 }}>Entrar no sistema</h1>
+    <div style={{ ...cardStyle, maxWidth: 420, margin: "8vh auto 0", padding: "32px 28px", boxShadow: "var(--shadow-md), 0 0 48px rgba(224,182,129,0.10)" }}>
+      <div style={{ textAlign: "center", marginBottom: 22 }}>
+        <img src="/logo-miriam-rios.png" alt="Cortinas Miriam Rios" style={{ width: "min(300px, 82%)", height: "auto" }} />
+      </div>
+      <h1 style={{ fontSize: 24, lineHeight: 1.05, marginBottom: 6, textAlign: "center" }}>Entrar no sistema</h1>
       <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginBottom: 24 }}>
         Use o usuário e senha cadastrados pelo seu gestor.
       </p>
@@ -3514,7 +3493,7 @@ function PainelGestorScreen({ usuarios, index, onBack, papel }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: 34, lineHeight: 1.05, margin: 0 }}>Painel de vendas</h1>
-          <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #E8A870, #B96C3F)", margin: "8px 0 6px" }} />
+          <div style={{ width: 44, height: 3, borderRadius: 3, background: "linear-gradient(90deg, #EFCB95, #B98A52)", margin: "8px 0 6px" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <button onClick={() => mudarMes(-1)} aria-label="Mês anterior" style={{ ...ghostBtnStyle, padding: "6px 10px" }}>
               <ChevronLeft size={16} />
@@ -3564,7 +3543,7 @@ function PainelGestorScreen({ usuarios, index, onBack, papel }) {
                       fontSize: 12.5,
                       fontWeight: 600,
                       background: periodo === k ? "var(--accent)" : "transparent",
-                      color: periodo === k ? "#2B140A" : "var(--ink-soft)",
+                      color: periodo === k ? "#1A1006" : "var(--ink-soft)",
                     }}
                   >
                     {l}
@@ -3684,8 +3663,8 @@ function PainelGestorScreen({ usuarios, index, onBack, papel }) {
                         fontFamily: "var(--display)",
                         fontSize: 15,
                         fontWeight: 700,
-                        background: i === 0 && vendas > 0 ? "linear-gradient(135deg, #E8A870, #B96C3F)" : "var(--field)",
-                        color: i === 0 && vendas > 0 ? "#2B140A" : "var(--ink-soft)",
+                        background: i === 0 && vendas > 0 ? "linear-gradient(135deg, #EFCB95, #B98A52)" : "var(--field)",
+                        color: i === 0 && vendas > 0 ? "#1A1006" : "var(--ink-soft)",
                         border: "1px solid var(--line)",
                       }}
                     >
@@ -3819,11 +3798,11 @@ const painelHeroStyle = {
   border: "1px solid var(--hero-border)",
   background:
     "var(--hero-bg)",
-  boxShadow: "var(--shadow-md), 0 0 48px rgba(70,160,255,0.09)",
+  boxShadow: "var(--shadow-md), 0 0 48px rgba(224,182,129,0.09)",
 };
 
 /* Barra de progresso (0–100). */
-const CORES_ROSCA = ["#E8A870", "#6FB1FF", "#7BD3A0", "#C79BFF", "#F0C75E", "#FF8FA3", "#8FD3E8", "#B0B8C8"];
+const CORES_ROSCA = ["#EFCB95", "#6FB1FF", "#7BD3A0", "#C79BFF", "#F0C75E", "#FF8FA3", "#8FD3E8", "#B0B8C8"];
 /* Gráfico de rosca (pizza vazada): o círculo todo é 100% do faturamento e
    cada fatia é a parte de um vendedor. */
 function PainelRosca({ fatias, total }) {
@@ -4703,7 +4682,7 @@ function KanbanBoard({ usuarios, index, busca, papel, nome, onAbrirPedido, onVol
                         border: "1px solid var(--hero-border)",
                         borderLeft: `3px solid ${cor}`,
                         borderRadius: 12,
-                        boxShadow: "var(--shadow-md), 0 0 24px rgba(70,160,255,0.08)",
+                        boxShadow: "var(--shadow-md), 0 0 24px rgba(224,182,129,0.08)",
                         overflow: "hidden",
                         flexShrink: 0,
                       }}
@@ -7725,12 +7704,12 @@ function gerarHtmlOrcamentoCliente(pedido) {
 <style>
   * { box-sizing: border-box; }
   body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #111; padding: 32px; font-size: 17px; max-width: 820px; margin: 0 auto; }
-  .topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #b96c3f; padding-bottom: 12px; margin-bottom: 18px; }
+  .topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #B98A52; padding-bottom: 12px; margin-bottom: 18px; }
   .loja { font-size: 28px; font-weight: 800; letter-spacing: .3px; }
   .loja small { display: block; font-size: 14px; font-weight: 500; color: #666; letter-spacing: 1.5px; text-transform: uppercase; }
   .num { text-align: right; font-size: 15px; color: #444; }
   .num b { display: block; font-size: 22px; color: #111; }
-  h2 { font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; color: #b96c3f; margin: 22px 0 6px; }
+  h2 { font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; color: #B98A52; margin: 22px 0 6px; }
   .row { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px solid #e4e4e4; }
   .row .l { color: #666; }
   .row .v { font-weight: 600; text-align: right; }
@@ -7745,7 +7724,7 @@ function gerarHtmlOrcamentoCliente(pedido) {
   .tot { display: flex; justify-content: space-between; padding: 6px 0; }
   .tot.desc { color: #1d7a46; }
   .tot.final { border-top: 2px solid #111; margin-top: 6px; padding-top: 10px; font-size: 24px; font-weight: 800; }
-  .validade { margin-top: 26px; border: 2px dashed #b96c3f; border-radius: 10px; padding: 12px 16px; font-size: 17px; }
+  .validade { margin-top: 26px; border: 2px dashed #B98A52; border-radius: 10px; padding: 12px 16px; font-size: 17px; }
   .rodape { margin-top: 34px; display: flex; gap: 40px; font-size: 14px; color: #666; }
   .rodape div { flex: 1; border-top: 1px solid #999; padding-top: 6px; text-align: center; }
   @media print { body { padding: 10px; } }
@@ -9921,8 +9900,8 @@ function primaryBtnStyle(disabled) {
   return {
     width: "100%",
     marginTop: 16,
-    background: disabled ? "#27324A" : "linear-gradient(135deg, #E8A870 0%, #B96C3F 100%)",
-    color: disabled ? "var(--ink-soft)" : "var(--accent-ink)",
+    background: disabled ? "#3A342B" : "linear-gradient(135deg, #EFCB95 0%, #B98A52 100%)",
+    color: disabled ? "var(--ink-soft)" : "#1A1006",
     border: "none",
     borderRadius: 10,
     padding: "11px 14px",
@@ -9933,7 +9912,7 @@ function primaryBtnStyle(disabled) {
     justifyContent: "center",
     gap: 6,
     cursor: disabled ? "not-allowed" : "pointer",
-    boxShadow: disabled ? "none" : "var(--shadow-sm), 0 0 22px rgba(232,168,112,0.28)",
+    boxShadow: disabled ? "none" : "var(--shadow-sm), 0 0 22px rgba(239,203,149,0.28)",
   };
 }
 function inputStyle() {
