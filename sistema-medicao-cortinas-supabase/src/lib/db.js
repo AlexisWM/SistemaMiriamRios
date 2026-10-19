@@ -39,6 +39,10 @@ function pedidoParaLinha(pedido) {
     status: pedido.status,
     perdido_em: pedido.perdidoEm || null,
     ambientes: pedido.ambientes,
+    // Versões de orçamento (supabase/orcamentos.sql). Só vai na gravação se a
+    // coluna existir (ou se já há versões guardadas), pra nunca quebrar o
+    // salvamento de quem ainda não rodou o SQL.
+    ...(pedido.orcamentos ? { orcamentos: pedido.orcamentos } : {}),
   };
 }
 function linhaParaPedido(row) {
@@ -54,6 +58,9 @@ function linhaParaPedido(row) {
     status: row.status,
     perdidoEm: row.perdido_em || null,
     ambientes: row.ambientes || [],
+    orcamentos: row.orcamentos || null,
+    // true quando o banco ainda não tem a coluna `orcamentos` (SQL não rodado).
+    orcamentosAusente: row.orcamentos === undefined,
   };
 }
 
@@ -146,7 +153,14 @@ export async function loadPedido(id) {
 }
 
 export async function savePedido(pedido) {
-  const { error } = await supabase.from("pedidos").upsert(pedidoParaLinha(pedido));
+  const linha = pedidoParaLinha(pedido);
+  let { error } = await supabase.from("pedidos").upsert(linha);
+  if (error && /orcamentos/i.test(error.message || "") && linha.orcamentos) {
+    // Coluna ainda não existe: grava o resto normalmente (sem as versões).
+    console.warn("savePedido: coluna 'orcamentos' ausente — rode supabase/orcamentos.sql");
+    const { orcamentos, ...semOrc } = linha;
+    ({ error } = await supabase.from("pedidos").upsert(semOrc));
+  }
   if (error) {
     console.error("savePedido:", error.message);
     return false;
